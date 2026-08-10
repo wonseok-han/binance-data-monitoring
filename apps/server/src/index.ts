@@ -7,6 +7,7 @@ import { createBinanceRestClient } from './collector/binanceRest.js';
 import { createWsFactory } from './collector/binanceWs.js';
 import { startCollector } from './collector/collector.js';
 import { createEventBus } from './events/bus.js';
+import { createShutdownHandler } from './shutdown.js';
 
 const config = loadConfig();
 const dbHandle = createDb(config.DATABASE_URL);
@@ -18,7 +19,12 @@ const app = buildApp({ db: dbHandle, config, events });
 const restClient = createBinanceRestClient({ baseUrl: config.BINANCE_REST_URL });
 const wsFactory = createWsFactory();
 
-config.symbols.forEach((symbol) => {
+const collectorLogger = {
+  info: (msg: string, meta?: Record<string, unknown>) => app.log.info(meta ?? {}, msg),
+  error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
+};
+
+const collectors = config.symbols.map((symbol) =>
   startCollector(symbol, {
     db: dbHandle.db,
     fetchKlines: restClient.fetchKlines,
@@ -27,11 +33,27 @@ config.symbols.forEach((symbol) => {
     backfillHours: config.BACKFILL_HOURS,
     staleAfterSeconds: config.STALE_AFTER_SECONDS,
     events,
-    logger: {
-      info: (msg, meta) => app.log.info(meta ?? {}, msg),
-      error: (msg, meta) => app.log.error(meta ?? {}, msg),
-    },
-  });
+    logger: collectorLogger,
+  }),
+);
+
+const shutdown = createShutdownHandler({
+  collectors,
+  closeApp: () => app.close(),
+  closeDb: () => dbHandle.sqlite.close(),
+  logger: collectorLogger,
 });
+
+const handleSignal = (signal: NodeJS.Signals): void => {
+  shutdown(signal)
+    .then(() => process.exit(0))
+    .catch((error: unknown) => {
+      app.log.error({ error: String(error) }, 'shutdown failed');
+      process.exit(1);
+    });
+};
+
+process.on('SIGTERM', () => handleSignal('SIGTERM'));
+process.on('SIGINT', () => handleSignal('SIGINT'));
 
 await app.listen({ port: config.PORT, host: '0.0.0.0' });

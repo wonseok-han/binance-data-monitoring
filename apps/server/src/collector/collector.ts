@@ -125,11 +125,12 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
     deps.events?.emitCandle(symbol, candle);
   }
 
-  function flushBuffer(): void {
-    if (buffer.length === 0) return;
+  function flushBuffer(): number {
+    if (buffer.length === 0) return 0;
     const sorted = [...buffer].sort((a, b) => a.openTime - b.openTime);
     buffer = [];
     upsertCandles(deps.db, sorted);
+    return sorted.length;
   }
 
   function attachHandlers(ws: WsConnection): void {
@@ -164,13 +165,14 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
     if (stopped) return;
     mode = 'buffering';
     buffer = [];
+    logger.info('collector connecting', { symbol, attempt });
     socket = deps.wsFactory(klineStreamUrl(deps.wsBaseUrl, symbol));
     attachHandlers(socket);
 
     runBackfill({ db: deps.db, fetchKlines: deps.fetchKlines, now }, symbol, deps.backfillHours)
-      .then(() => {
+      .then((backfilledCount) => {
         if (stopped) return;
-        flushBuffer();
+        const flushedCount = flushBuffer();
         mode = 'live';
         lastEventAt = now();
 
@@ -181,6 +183,7 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
           ...(socketOpen ? { connectionStatus: 'live' as const } : {}),
         });
         startStaleWatchdog();
+        logger.info('collector live', { symbol, backfilledCount, flushedCount });
       })
       .catch((error: unknown) => {
         logger.error('backfill failed', { symbol, error: String(error) });
@@ -199,6 +202,7 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearStaleWatchdog();
       socket?.close();
+      logger.info('collector stopped', { symbol });
     },
   };
 }
