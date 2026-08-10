@@ -108,15 +108,17 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 ## 백엔드 작업 — Claude
 
-- [ ] 설정 스키마와 보존 기간 관계 검증
-- [ ] `backfill_jobs` 마이그레이션과 저장소 구현
-- [ ] 최근 구간 우선 복구와 장기 백필 worker 분리
-- [ ] cursor 저장, 재시작 재개, graceful shutdown 테스트
-- [ ] 백필 진행률·coverage 상태 API와 SSE 제공
-- [ ] candles 응답의 cursor page 계약 구현
-- [ ] 확정 봉 기준 status SSE 발행
-- [ ] 장기 백필 중 API·실시간 수집 비차단 검증
-- [ ] 전체 백엔드 회귀 테스트와 필수 품질 명령 통과
+- [x] 설정 스키마와 보존 기간 관계 검증
+- [x] `backfill_jobs` 마이그레이션과 저장소 구현
+- [x] 최근 구간 우선 복구와 장기 백필 worker 분리
+- [x] cursor 저장, 재시작 재개, graceful shutdown 테스트
+- [x] 백필 진행률·coverage 상태 API와 SSE 제공
+- [x] candles 응답의 cursor page 계약 구현
+- [x] 확정 봉 기준 status SSE 발행
+- [x] 장기 백필 중 API·실시간 수집 비차단 검증
+- [x] 전체 백엔드 회귀 테스트와 필수 품질 명령 통과
+
+백엔드 범위는 완료했다. Codex의 UI 작업이 남아 있어 이 문서는 계속 `in-progress`로 유지한다. 검증 결과는 문서 하단 "백엔드 검증 결과" 절 참고.
 
 ## UI 작업 — Codex
 
@@ -131,16 +133,18 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 ## 완료 조건
 
-- [ ] `BACKFILL_DAYS=365`인 새 DB에서도 HTTP와 실시간 수집이 장기 백필 완료를 기다리지 않는다.
-- [ ] 최근 24시간을 먼저 사용할 수 있고 과거 데이터가 최신→과거 방향으로 확장된다.
-- [ ] 서버 중단 후 같은 작업이 저장된 cursor부터 재개된다.
-- [ ] idle 상태의 웹이 30초마다 세 API를 호출하지 않는다.
-- [ ] 6시간봉·일봉 candle 재조회는 최대 확정 1분봉 주기로 제한된다.
-- [ ] 차트가 이전 데이터를 추가해도 중복과 시간 위치 점프가 없다.
-- [ ] UI에서 진행률과 현재 데이터 보유 범위를 확인할 수 있다.
-- [ ] 보존 기간이 백필 목표보다 짧은 잘못된 설정을 거부한다.
-- [ ] 네트워크 없는 테스트와 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`가 통과한다.
+- [x] `BACKFILL_DAYS=365`인 새 DB에서도 HTTP와 실시간 수집이 장기 백필 완료를 기다리지 않는다.
+- [x] 최근 24시간을 먼저 사용할 수 있고 과거 데이터가 최신→과거 방향으로 확장된다.
+- [x] 서버 중단 후 같은 작업이 저장된 cursor부터 재개된다.
+- [ ] idle 상태의 웹이 30초마다 세 API를 호출하지 않는다. (Codex 담당, 미착수)
+- [ ] 6시간봉·일봉 candle 재조회는 최대 확정 1분봉 주기로 제한된다. (Codex 담당; 백엔드는 확정 1분봉마다 `candle` SSE를 이미 발행한다 — 트리거는 준비됨)
+- [ ] 차트가 이전 데이터를 추가해도 중복과 시간 위치 점프가 없다. (Codex 담당; 백엔드 cursor 페이지네이션은 준비됨)
+- [ ] UI에서 진행률과 현재 데이터 보유 범위를 확인할 수 있다. (Codex 담당; 백엔드 `historicalBackfill`/`coverage`는 준비됨)
+- [x] 보존 기간이 백필 목표보다 짧은 잘못된 설정을 거부한다.
+- [x] 네트워크 없는 테스트와 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`가 통과한다 (workspace 전체, 현재 `apps/web` 상태 기준. UI 작업 반영 후 재검증 필요).
 - [ ] 완료된 계약과 구조를 `docs/DESIGN.md`, README, `.env.example`에 반영한다.
+      → `README.md`와 `.env.example`은 백엔드 변경분(warmup 설정, `backfill_jobs`, 상태 API 확장, cursor 페이지네이션)을 이미 반영했다.
+      `docs/DESIGN.md`는 AGENTS.md 작업 생명주기에 따라 **UI 작업까지 전체 완료된 뒤에만** 갱신하므로 아직 미반영이다.
 
 ## 범위 제외
 
@@ -149,4 +153,42 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - 숫자 페이지 기반 차트 탐색
 - 백필 일시정지·취소 관리 화면
 - 임의 날짜 범위 백필 CLI
+
+## 백엔드 검증 결과 (Claude)
+
+### 로컬 브랜치·커밋
+
+| 브랜치 | 내용 |
+| --- | --- |
+| `docs/2-start-background-backfill-task` | 작업 문서를 `todo` → `in-progress`로 이동 |
+| `feat/2-config-warmup-retention-validation` | `BACKFILL_WARMUP_HOURS` 추가, 기본값 365일, `RETENTION_DAYS < BACKFILL_DAYS` 거부 |
+| `feat/2-backfill-jobs-schema-repo` | `backfill_jobs` 테이블/마이그레이션/리포지토리, `getEarliestCandle` |
+| `feat/2-historical-backfill-worker` | 장기 백필 worker(cursor 저장, 재개, graceful stop) |
+| `feat/2-status-historical-sse-collector` | `status/status.ts` 통합, `historicalBackfill`/`coverage`, 확정봉 SSE, `onFirstLive`, 비동기 shutdown, index.ts 배선 |
+| `feat/2-candles-cursor-pagination` | candles 응답 `page.nextBefore`/`hasMore` |
+| `docs/2-update-checklist` | 이 문서 갱신 (현재 브랜치) |
+
+모두 로컬 `main`에 `--ff-only`로 반영되어 있고 원격 push는 하지 않았다.
+
+### 자동 검증
+
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — workspace 전체(`packages/shared`, `apps/server`, `apps/web`) 통과.
+- `apps/server` 테스트 106개(신규 backfill_jobs 리포지토리·historicalWorker·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown 테스트 포함), `packages/shared` 4개, `apps/web` 10개(미수정, 회귀 없음) 모두 통과.
+- 새 필드(`historicalBackfill`, `coverage`, `page`)를 공용 스키마에 필수 필드로 추가했지만 `apps/web`의 typecheck/test/build 모두 회귀 없이 통과함을 확인했다(기존 코드가 이 값들을 아직 사용하지 않기 때문).
+- 네트워크 호출은 fixture와 주입 가능한 clock/REST/WebSocket 더블로 대체했고 기본 테스트 스위트에는 포함하지 않았다.
+
+### 실서버 스모크 테스트 (Binance 실연동)
+
+- 기본값(`BACKFILL_DAYS=365`, `BACKFILL_WARMUP_HOURS=24`)으로 새 DB에서 BTCUSDT 기동 → `/health/ready`가 0.55초 만에 응답(장기 백필을 기다리지 않음), 3초 뒤 `/api/status`에서 `connectionStatus: live`, `completeness24h: 1440/1440`, `historicalBackfill: { status: running, total: 524160 }`이 이미 진행 중임을 확인.
+- `BACKFILL_DAYS=60`으로 백필이 진행 중인 상태에서 `SIGTERM` 전송 → 진행 중이던 페이지를 마저 처리하고 cursor를 저장한 뒤(`shutdown started` → `collector stopped` → `shutdown complete` 약 100ms) 정상 종료. 재시작 시 **같은 `backfill_jobs` id**로 저장된 cursor부터 이어서 진행됨을 확인(처음부터 다시 시작하지 않음).
+- `GET /api/candles?interval=1d`에서 받은 `page.nextBefore`를 다음 요청의 `to`로 넘겨 과거 페이지를 정상적으로 이어받고, 더 이상 데이터가 없을 때 `hasMore: false`와 빈 배열을 확인.
+- 75초간 SSE(`/api/events`)를 구독해 확정 1분봉 저장 시 `event: status`가 정확히 발행됨을 확인(연결 상태 변화가 없어도 발행됨).
+- 잘못된 설정(`RETENTION_DAYS < BACKFILL_DAYS`)이 서버 시작 전 오류로 거부됨을 확인.
+
+### 남은 위험 / 다음 단계
+
+- UI(Codex) 작업이 전혀 시작되지 않았다. 이벤트 중심 동기화, 6h/1d 확정봉 트리거 재조회, cursor 기반 무한 스크롤, 백필 진행률/coverage 표시가 남아 있다.
+- `backfill_jobs`가 `failed` 상태가 되면 자동 재시도하지 않는다(설계상 의도, 재시도/취소 UI는 범위 제외). 운영자가 원인을 해결한 뒤 수동 개입이 필요할 수 있다는 점을 UI/운영 문서에 반영할 필요가 있다.
+- `BACKFILL_DAYS`(전체 목표 기간)와 `BACKFILL_WARMUP_HOURS`(동기 warmup 구간) 두 값의 관계를 UI에서 설명하지 않으면 사용자가 왜 "완료"와 "진행 중"이 공존하는지 혼동할 수 있다.
+- 365일 전체 백필을 끝까지 실행하는 장시간 테스트는 하지 않았다(수십~수백 초 규모로 축소한 값들로 페이지네이션·재개·비차단 동작의 정확성만 검증했다). 로직상 페이지 수만 늘어날 뿐 동일하게 동작해야 하지만, 실제 장시간 운영에서의 관찰은 하지 못했다.
 
