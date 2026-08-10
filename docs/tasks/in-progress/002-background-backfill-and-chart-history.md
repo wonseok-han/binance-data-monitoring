@@ -1,6 +1,6 @@
 # 002. 백그라운드 백필과 차트 과거 탐색 개선
 
-- 상태: `todo`
+- 상태: `in-progress`
 - 백엔드 담당: Claude
 - UI 담당: Codex
 - 기준 설계: `docs/DESIGN.md`
