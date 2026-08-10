@@ -81,6 +81,16 @@ export function queryCandles(db: DbHandle['db'], symbol: string, options: QueryC
   return rows.reverse();
 }
 
+/** Every candle within [from, to], ascending. No limit — callers bound the range themselves. */
+export function getCandlesInRange(db: DbHandle['db'], symbol: string, from: number, to: number) {
+  return db
+    .select()
+    .from(candles)
+    .where(and(eq(candles.symbol, symbol), gte(candles.openTime, from), lte(candles.openTime, to)))
+    .orderBy(candles.openTime)
+    .all();
+}
+
 export function getLatestCandle(db: DbHandle['db'], symbol: string) {
   return db
     .select()

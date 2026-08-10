@@ -1,0 +1,92 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { Candle } from '@binance-monitoring/shared';
+import type { CandleRepositoryPort, RecentOneMinuteCandlesQuery } from '../domain/ports.js';
+import { INTERVAL_MS } from '../domain/interval.js';
+import { createGetCandlesUseCase } from './getCandles.js';
+
+const SYMBOL = 'BTCUSDT';
+const MINUTE_MS = 60_000;
+
+function candle(openTime: number): Candle {
+  return {
+    symbol: SYMBOL,
+    openTime,
+    closeTime: openTime + MINUTE_MS - 1,
+    open: '1',
+    high: '1',
+    low: '1',
+    close: '1',
+    volume: '1',
+    quoteVolume: '1',
+    tradeCount: 1,
+    isClosed: true,
+    updatedAt: openTime,
+  };
+}
+
+function fakeRepository(rows: Candle[]): CandleRepositoryPort {
+  return {
+    getRecentOneMinuteCandles: vi.fn((query: RecentOneMinuteCandlesQuery) => {
+      return rows
+        .filter((c) => (query.from === undefined || c.openTime >= query.from) && (query.to === undefined || c.openTime <= query.to))
+        .sort((a, b) => a.openTime - b.openTime)
+        .slice(-query.limit);
+    }),
+    getOneMinuteCandlesInRange: vi.fn((symbol: string, from: number, to: number) => {
+      return rows.filter((c) => c.openTime >= from && c.openTime <= to).sort((a, b) => a.openTime - b.openTime);
+    }),
+  };
+}
+
+describe('createGetCandlesUseCase', () => {
+  it('delegates 1m queries straight to the repository', () => {
+    const rows = [candle(0), candle(MINUTE_MS), candle(2 * MINUTE_MS)];
+    const repository = fakeRepository(rows);
+    const getCandles = createGetCandlesUseCase({ repository, now: () => 3 * MINUTE_MS });
+
+    const result = getCandles({ symbol: SYMBOL, interval: '1m', limit: 2 });
+
+    expect(repository.getRecentOneMinuteCandles).toHaveBeenCalledWith({
+      symbol: SYMBOL,
+      from: undefined,
+      to: undefined,
+      limit: 2,
+    });
+    expect(result).toHaveLength(2);
+  });
+
+  it('aggregates 6h buckets from the full underlying range and applies limit after aggregation', () => {
+    const bucketMs = INTERVAL_MS['6h'];
+    const bucket0 = 0;
+    const bucket1 = bucketMs;
+    const bucket2 = 2 * bucketMs;
+
+    const rows = [
+      ...Array.from({ length: 360 }, (_, i) => candle(bucket0 + i * MINUTE_MS)),
+      ...Array.from({ length: 360 }, (_, i) => candle(bucket1 + i * MINUTE_MS)),
+      ...Array.from({ length: 360 }, (_, i) => candle(bucket2 + i * MINUTE_MS)),
+    ];
+    const repository = fakeRepository(rows);
+    const getCandles = createGetCandlesUseCase({ repository, now: () => 3 * bucketMs });
+
+    const result = getCandles({ symbol: SYMBOL, interval: '6h', from: bucket0, to: bucket2 + bucketMs - 1, limit: 2 });
+
+    expect(result.map((b) => b.openTime)).toEqual([bucket1, bucket2]);
+    expect(result.every((b) => b.isClosed)).toBe(true);
+  });
+
+  it('derives a default range from now and limit when from/to are omitted', () => {
+    const bucketMs = INTERVAL_MS['1d'];
+    const now = 10 * bucketMs;
+    const rows = Array.from({ length: 5 }, (_, i) => candle(i * bucketMs)).flatMap((c) =>
+      Array.from({ length: 1440 }, (_, m) => candle(c.openTime + m * MINUTE_MS)),
+    );
+    const repository = fakeRepository(rows);
+    const getCandles = createGetCandlesUseCase({ repository, now: () => now });
+
+    const result = getCandles({ symbol: SYMBOL, interval: '1d', limit: 3 });
+
+    expect(repository.getOneMinuteCandlesInRange).toHaveBeenCalled();
+    expect(result.length).toBeLessThanOrEqual(3);
+  });
+});

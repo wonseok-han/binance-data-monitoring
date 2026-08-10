@@ -1,7 +1,9 @@
+import { IntervalSchema, type Interval } from '@binance-monitoring/shared';
 import { ApiError } from './errors.js';
 
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 2000;
+const DEFAULT_INTERVAL: Interval = '1m';
 
 export function parseSymbol(raw: unknown, allowedSymbols: string[]): string {
   if (typeof raw !== 'string' || raw.trim().length === 0) {
@@ -28,6 +30,17 @@ export function parseLimit(raw: unknown): number {
   }
 
   return value;
+}
+
+export function parseInterval(raw: unknown): Interval {
+  if (raw === undefined) return DEFAULT_INTERVAL;
+
+  const result = IntervalSchema.safeParse(raw);
+  if (!result.success) {
+    throw new ApiError(400, 'INVALID_INTERVAL', 'interval must be one of: 1m, 6h, 1d');
+  }
+
+  return result.data;
 }
 
 export function parseTimestamp(raw: unknown, field: string): number | undefined {

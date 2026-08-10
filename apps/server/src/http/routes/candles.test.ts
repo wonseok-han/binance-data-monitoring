@@ -77,4 +77,37 @@ describe('GET /api/candles', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe('INVALID_RANGE');
   });
+
+  it('defaults to the 1m interval and echoes it in the response', async () => {
+    const start = Date.UTC(2024, 2, 1, 0, 0, 0);
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start, 2));
+
+    const response = await app.inject({ method: 'GET', url: `/api/candles?symbol=${SYMBOL}` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().interval).toBe('1m');
+  });
+
+  it('aggregates into a single confirmed 6h bucket once all 360 underlying 1m candles are closed', async () => {
+    const bucketOpen = 6 * 60 * 60 * 1000 * 10; // an arbitrary UTC 6h boundary
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, bucketOpen, 360));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/candles?symbol=${SYMBOL}&interval=6h&from=${bucketOpen}&to=${bucketOpen + 6 * 60 * 60 * 1000 - 1}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.interval).toBe('6h');
+    expect(body.candles).toHaveLength(1);
+    expect(body.candles[0]).toMatchObject({ openTime: bucketOpen, isClosed: true });
+  });
+
+  it('rejects an unsupported interval', async () => {
+    const response = await app.inject({ method: 'GET', url: `/api/candles?symbol=${SYMBOL}&interval=5m` });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('INVALID_INTERVAL');
+  });
 });

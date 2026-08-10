@@ -32,8 +32,12 @@ export const CandleSchema = z.object({
 });
 export type Candle = z.infer<typeof CandleSchema>;
 
+export const IntervalSchema = z.enum(['1m', '6h', '1d']);
+export type Interval = z.infer<typeof IntervalSchema>;
+
 export const CandlesResponseSchema = z.object({
   symbol: z.string(),
+  interval: IntervalSchema,
   candles: z.array(CandleSchema),
 });
 export type CandlesResponse = z.infer<typeof CandlesResponseSchema>;
