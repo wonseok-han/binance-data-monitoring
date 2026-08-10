@@ -5,7 +5,8 @@ BTCUSDT와 ETHUSDT의 Binance 1분봉을 수집·복구하고 실시간 운영 �
 ## Read First
 
 1. `docs/DESIGN.md` — 범위, 아키텍처, 데이터/API 계약, 완료 기준
-2. `AGENTS.md` — 구현 규칙, 필수 명령, 테스트 우선순위
+2. `docs/tasks/in-progress` 또는 `docs/tasks/todo` — 현재 변경 작업과 체크리스트
+3. `AGENTS.md` — 구현 규칙, 필수 명령, 테스트 우선순위
 
 두 문서와 다른 구현을 제안해야 한다면 코드를 먼저 바꾸지 말고 이유와 trade-off를 짧게 설명한다.
 
@@ -18,13 +19,14 @@ BTCUSDT와 ETHUSDT의 Binance 1분봉을 수집·복구하고 실시간 운영 �
 
 ## Implementation Workflow
 
-1. 작업할 설계 단계와 완료 조건을 한 문장으로 명시한다.
+1. 대상 task를 `todo`에서 `in-progress`로 이동하고 작업할 단계와 완료 조건을 한 문장으로 명시한다.
 2. `AGENTS.md`의 로컬 Git 절차에 따라 기능 브랜치를 만든다.
 3. 관련 파일만 읽고 가장 작은 변경을 구현한다.
 4. 네트워크 경계는 fixture로, 시간 로직은 fake clock으로 테스트한다.
 5. 변경한 범위의 테스트와 전체 품질 명령을 실행한 뒤 로컬 커밋과 fast-forward를 완료한다.
-6. 백엔드 담당 범위가 끝날 때까지 승인을 기다리지 않고 다음 기능 브랜치로 계속한다.
-7. 전체 작업이 끝나면 브랜치·커밋, 동작, 검증 결과, 남은 위험만 간결하게 보고한다.
+6. 백엔드 담당 범위가 끝날 때까지 task 체크리스트를 갱신하며 승인 없이 다음 기능 브랜치로 계속한다.
+7. Codex 작업이 남아 있으면 task를 `in-progress`에 유지하고, 전체 작업이 끝난 경우에만 `docs/DESIGN.md`를 갱신한 뒤 `done`으로 이동한다.
+8. 전체 작업이 끝나면 브랜치·커밋, 동작, 검증 결과, 남은 위험만 간결하게 보고한다.
 
 ## Local Git Boundary
 

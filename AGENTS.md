@@ -4,9 +4,18 @@
 
 ## Source of Truth
 
-- 제품 범위, 기술 선택, 데이터 흐름, API 계약은 `docs/DESIGN.md`를 따른다.
-- 사용자의 현재 요청이 문서보다 우선한다. 요청이 설계를 바꾸면 먼저 `docs/DESIGN.md`를 함께 갱신한다.
+- 현재 구현의 제품 범위, 기술 선택, 데이터 흐름, API 계약은 `docs/DESIGN.md`를 따른다.
+- 아직 구현하지 않은 변경은 `docs/tasks/todo`, 진행 중인 변경은 `docs/tasks/in-progress`, 완료 기록은 `docs/tasks/done`에서 관리한다.
+- 사용자의 현재 요청이 문서보다 우선한다. 설계를 바꾸는 작업은 task 문서에 변경 계약을 먼저 정의하고, 구현 완료 시 `docs/DESIGN.md`에 반영한다.
 - `CLAUDE.md`는 Claude용 진입 문서이며 별도의 제품 요구사항을 정의하지 않는다.
+
+## Task Lifecycle
+
+- 작업 시작 시 대상 문서 하나를 `todo`에서 `in-progress`로 이동하고 상태를 `in-progress`로 바꾼다.
+- 체크리스트를 갱신하며 문서에 없는 범위를 임의로 추가하지 않는다.
+- 여러 담당자가 이어서 작업하면 마지막 담당자가 완료할 때까지 `in-progress`에 유지한다.
+- 모든 검증이 끝나면 실제 구현을 `docs/DESIGN.md`와 README에 반영하고 문서를 `done`으로 이동한다.
+- 동일 내용을 여러 상태 폴더나 `DESIGN.md`에 미리 복사하지 않는다.
 
 ## Ownership
 
@@ -17,13 +26,13 @@
 | 공동 경계 | `packages/shared`, 루트 설정, 문서 |
 
 - 상대의 소유 영역을 직접 수정하지 않는다. 필요한 변경은 계약과 이유를 먼저 제시한다.
-- API 스키마 변경은 `docs/DESIGN.md`와 `packages/shared`를 먼저 맞춘 후 양쪽에서 적용한다.
+- API 스키마 변경은 진행 중인 task 계약과 `packages/shared`를 먼저 맞춘 후 양쪽에서 적용하고, 완료 시 `docs/DESIGN.md`를 갱신한다.
 - UI는 공용 계약과 동일한 fixture를 사용할 수 있지만, 제품 코드에 별도 mock 계약을 만들지 않는다.
 - 공동 경계 파일을 수정할 때는 기존 작업을 확인하고 자기 작업에 필요한 최소 범위만 변경한다.
 
 ## Working Rules
 
-- `docs/DESIGN.md`의 단계를 하나씩 검증하며, 담당 범위가 끝날 때까지 중간 승인을 묻지 않고 계속 진행한다.
+- 활성 task의 단계를 하나씩 검증하며, 담당 범위가 끝날 때까지 중간 승인을 묻지 않고 계속 진행한다.
 - 요구되지 않은 인증, 메시지 브로커, 컨테이너 오케스트레이션, 범용 추상화를 추가하지 않는다.
 - Binance 응답과 HTTP 입력은 런타임 스키마로 검증한다. 내부 타입 단언만으로 신뢰하지 않는다.
 - 시각은 UTC Unix milliseconds, 종목은 대문자, 금액은 decimal 문자열을 기준으로 한다.
@@ -86,7 +95,7 @@
 - 수정 후 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`를 실행한다.
 - 실행하지 못한 검증은 성공했다고 표현하지 말고 이유를 남긴다.
 - 환경변수를 추가하면 `.env.example`과 README를 동시에 갱신한다.
-- API나 데이터 모델을 바꾸면 공용 스키마와 `docs/DESIGN.md`를 동시에 갱신한다.
+- API나 데이터 모델을 바꾸면 공용 스키마와 활성 task를 함께 갱신하고, 작업 완료 시 `docs/DESIGN.md`에 최종 상태를 반영한다.
 
 ## Shell Note
 
