@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getCandles, subscribeToMarketEvents } from './api';
+import { ApiRequestError, getCandles, subscribeToMarketEvents } from './api';
 
 const candleResponse = {
   symbol: 'BTCUSDT',
@@ -32,6 +32,45 @@ describe('HTTP requests', () => {
     await expect(Promise.all([first, second])).resolves.toEqual([candleResponse, candleResponse]);
   });
 
+  it('shares a request while allowing each AbortSignal consumer to cancel independently', async () => {
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () => new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+
+    const first = getCandles('BTCUSDT', '1m', { signal: firstController.signal });
+    const second = getCandles('BTCUSDT', '1m', { signal: secondController.signal });
+    firstController.abort();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    resolveFetch(new Response(JSON.stringify(candleResponse), { status: 200 }));
+    await expect(second).resolves.toEqual(candleResponse);
+  });
+
+  it('shows a stable user message for empty and unreachable error responses', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('', { status: 502 }))
+      .mockRejectedValueOnce(new TypeError('fetch failed'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getCandles('BTCUSDT', '1m')).rejects.toMatchObject({
+      message: '요청을 처리하지 못했습니다.',
+      code: 'UNKNOWN_ERROR',
+      status: 502,
+    } satisfies Partial<ApiRequestError>);
+    await expect(getCandles('BTCUSDT', '1m')).rejects.toMatchObject({
+      message: '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+      code: 'NETWORK_ERROR',
+      status: 0,
+    } satisfies Partial<ApiRequestError>);
+  });
+
   it('uses nextBefore as the next request to cursor', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(candleResponse), { status: 200 }),
@@ -40,26 +79,24 @@ describe('HTTP requests', () => {
 
     await getCandles('BTCUSDT', '1m', { to: 1_754_006_399_999 });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('&to=1754006399999'),
-      expect.objectContaining({ signal: undefined }),
-    );
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('&to=1754006399999'));
   });
 });
 
 describe('market event stream', () => {
-  it('requests a snapshot only after a disconnected stream opens again', () => {
+  it('recreates a failed stream and requests one snapshot after it opens', () => {
+    vi.useFakeTimers();
     class FakeEventSource {
-      static instance: FakeEventSource;
+      static instances: FakeEventSource[] = [];
       onopen: (() => void) | null = null;
       onerror: (() => void) | null = null;
+      close = vi.fn();
 
       constructor() {
-        FakeEventSource.instance = this;
+        FakeEventSource.instances.push(this);
       }
 
       addEventListener() {}
-      close() {}
     }
     vi.stubGlobal('EventSource', FakeEventSource);
     const onReconnect = vi.fn();
@@ -71,10 +108,46 @@ describe('market event stream', () => {
       onReconnect,
     });
 
-    FakeEventSource.instance.onopen?.();
+    FakeEventSource.instances[0]?.onopen?.();
     expect(onReconnect).not.toHaveBeenCalled();
-    FakeEventSource.instance.onerror?.();
-    FakeEventSource.instance.onopen?.();
+    FakeEventSource.instances[0]?.onerror?.();
+    expect(FakeEventSource.instances[0]?.close).toHaveBeenCalledOnce();
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    vi.advanceTimersByTime(1_000);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    FakeEventSource.instances[1]?.onopen?.();
     expect(onReconnect).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it('cancels a pending reconnect when unsubscribing', () => {
+    vi.useFakeTimers();
+    class FakeEventSource {
+      static instances: FakeEventSource[] = [];
+      onopen: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      close = vi.fn();
+
+      constructor() {
+        FakeEventSource.instances.push(this);
+      }
+
+      addEventListener() {}
+    }
+    vi.stubGlobal('EventSource', FakeEventSource);
+
+    const unsubscribe = subscribeToMarketEvents({
+      onCandle: vi.fn(),
+      onStatus: vi.fn(),
+      onStateChange: vi.fn(),
+      onReconnect: vi.fn(),
+    });
+    FakeEventSource.instances[0]?.onerror?.();
+    unsubscribe();
+    vi.runAllTimers();
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+    vi.useRealTimers();
   });
 });

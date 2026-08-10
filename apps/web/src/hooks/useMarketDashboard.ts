@@ -51,8 +51,11 @@ export function useMarketDashboard() {
   const [error, setError] = useState<string | null>(null);
   const selectionRef = useRef({ symbol, interval });
   const loadingPreviousRef = useRef(false);
+  const reconnectControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    reconnectControllerRef.current?.abort();
+    reconnectControllerRef.current = null;
     selectionRef.current = { symbol, interval };
   }, [interval, symbol]);
 
@@ -172,12 +175,15 @@ export function useMarketDashboard() {
       onReconnect: () => {
         const selection = selectionRef.current;
         if (!selection.symbol) return;
+        reconnectControllerRef.current?.abort();
+        const controller = new AbortController();
+        reconnectControllerRef.current = controller;
         void Promise.all([
-          getStatus().then((response) => setStatuses(response.symbols)),
-          requestSummary(selection.symbol).then((response) => {
+          getStatus(controller.signal).then((response) => setStatuses(response.symbols)),
+          requestSummary(selection.symbol, controller.signal).then((response) => {
             if (selectionRef.current.symbol === selection.symbol) setSummary(response);
           }),
-          getCandles(selection.symbol, selection.interval).then((response) => {
+          getCandles(selection.symbol, selection.interval, { signal: controller.signal }).then((response) => {
             if (
               selectionRef.current.symbol === selection.symbol &&
               selectionRef.current.interval === selection.interval
@@ -186,12 +192,19 @@ export function useMarketDashboard() {
             }
           }),
         ]).then(() => setLastUpdatedAt(Date.now())).catch((refreshError: unknown) => {
+          if (refreshError instanceof DOMException && refreshError.name === 'AbortError') return;
           setError(refreshError instanceof Error ? refreshError.message : '재연결 후 데이터를 동기화하지 못했습니다.');
+        }).finally(() => {
+          if (reconnectControllerRef.current === controller) reconnectControllerRef.current = null;
         });
       },
     });
 
-    return unsubscribe;
+    return () => {
+      reconnectControllerRef.current?.abort();
+      reconnectControllerRef.current = null;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

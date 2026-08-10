@@ -127,6 +127,24 @@ describe('useMarketDashboard synchronization', () => {
     });
   });
 
+  it('cancels reconnect snapshot consumers when the selection changes', async () => {
+    const { result } = renderHook(() => useMarketDashboard());
+    await waitFor(() => expect(result.current.requestState).toBe('ready'));
+    api.getStatus.mockClear().mockReturnValue(new Promise(() => {}));
+    api.getSummary.mockClear().mockReturnValue(new Promise(() => {}));
+    api.getCandles.mockClear().mockReturnValue(new Promise(() => {}));
+
+    act(() => api.handlers?.onReconnect());
+    const statusSignal = api.getStatus.mock.calls[0]?.[0] as AbortSignal;
+    const candleSignal = api.getCandles.mock.calls[0]?.[2]?.signal as AbortSignal;
+    expect(statusSignal.aborted).toBe(false);
+    expect(candleSignal.aborted).toBe(false);
+
+    act(() => result.current.setInterval('6h'));
+    expect(statusSignal.aborted).toBe(true);
+    expect(candleSignal.aborted).toBe(true);
+  });
+
   it('enables the next cursor when background coverage has expanded past the oldest candle', async () => {
     api.getCandles.mockResolvedValue({
       symbol: 'BTCUSDT',
