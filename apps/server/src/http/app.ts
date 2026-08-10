@@ -29,7 +29,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Unexpected error' } });
   });
 
-  app.get('/health', async () => {
+  // Liveness: the process is up and the event loop is responsive. No DB access,
+  // so it never fails just because SQLite is momentarily busy.
+  app.get('/health/live', async () => {
+    return { status: 'ok' as const };
+  });
+
+  // Readiness: the process can actually serve requests (DB reachable).
+  app.get('/health/ready', async () => {
     deps.db.sqlite.prepare('SELECT 1').get();
     return { status: 'ok' as const };
   });

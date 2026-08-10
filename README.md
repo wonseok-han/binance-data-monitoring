@@ -89,7 +89,8 @@ Binance 공개 시세 API만 사용하므로 API key는 필요 없다.
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| GET | `/health` | 프로세스와 DB 접근 여부 확인 |
+| GET | `/health/live` | 프로세스 생존 확인 (DB 접근 없음) |
+| GET | `/health/ready` | DB 접근 가능 여부까지 확인 |
 | GET | `/api/status` | 종목별 연결 상태, 마지막 이벤트 시각, 지연 시간(`delayMs`) |
 | GET | `/api/candles?symbol=BTCUSDT&interval=1m&from=&to=&limit=500` | 기간별 봉 조회 (`interval`: `1m`\|`6h`\|`1d`, 기본 `1m`; open_time 오름차순; `limit`은 집계 후 봉 개수에 적용, 기본 500 · 최대 2000) |
 | GET | `/api/summary?symbol=BTCUSDT` | 현재가, 1시간 등락률, 1시간 거래대금 |

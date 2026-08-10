@@ -6,7 +6,7 @@ import { loadConfig } from '../config.js';
 import { createEventBus } from '../events/bus.js';
 import { buildApp } from './app.js';
 
-describe('GET /health', () => {
+describe('health checks', () => {
   let dbHandle: DbHandle;
   let app: FastifyInstance;
 
@@ -20,8 +20,21 @@ describe('GET /health', () => {
     dbHandle.sqlite.close();
   });
 
-  it('returns ok once the DB is reachable', async () => {
-    const response = await app.inject({ method: 'GET', url: '/health' });
+  it('GET /health/live returns ok even when the DB is unreachable', async () => {
+    const brokenDb = createTestDb();
+    brokenDb.sqlite.close();
+    const brokenApp = buildApp({ db: brokenDb, config: loadConfig({}), events: createEventBus() });
+
+    const response = await brokenApp.inject({ method: 'GET', url: '/health/live' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: 'ok' });
+
+    await brokenApp.close();
+  });
+
+  it('GET /health/ready returns ok once the DB is reachable', async () => {
+    const response = await app.inject({ method: 'GET', url: '/health/ready' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok' });
