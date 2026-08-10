@@ -38,11 +38,13 @@ status, processed_count, total_count,
 last_error, created_at, updated_at
 ```
 
-- 상태는 `pending`, `running`, `completed`, `failed`를 사용한다.
+- 상태는 `pending`, `running`, `retrying`, `completed`, `failed`를 사용한다.
 - 종목별 작업은 하나씩 실행하고 Binance 페이지 크기 단위로 cursor를 저장한다.
-- 서버 재시작 시 `pending` 또는 `running` 작업을 마지막 cursor부터 재개한다.
+- 서버 재시작 시 `pending`/`running`/`retrying` 작업을 마지막 cursor부터 재개한다.
 - REST/WS 중복은 기존 `(symbol, open_time)` upsert로 안전하게 처리한다.
-- 종료 신호를 받으면 현재 페이지 반영과 cursor 저장을 마친 뒤 worker를 종료한다.
+- 종료 신호를 받으면 현재 페이지 반영(또는 재시도 대기)을 즉시 중단하고 cursor를 저장한 뒤 worker를 종료한다.
+- 일시적 오류(네트워크 오류, Binance 429/5xx)는 job을 `failed`로 만들지 않고 `retrying` 상태로 전환해 지수 백오프(`BACKFILL_RETRY_BASE_DELAY_MS` ~ `BACKFILL_RETRY_MAX_DELAY_MS`) 후 같은 페이지를 재시도한다. 연속 재시도 횟수(`retryCount`)와 다음 재시도 시각(`nextRetryAt`)을 함께 저장해 재시작 후에도 남은 대기 시간만 마저 기다리고 이어서 진행한다.
+- 잘못된 요청 등 재시도로 해결되지 않는 영구 오류만 즉시 `failed`로 확정하며, `failed`는 자동 재개하지 않는다.
 - 외부 작업 큐나 메시지 브로커는 사용하지 않는다.
 
 ## API와 실시간 동기화 개선
@@ -69,7 +71,9 @@ last_error, created_at, updated_at
     "progressPercent": 45.66,
     "from": 1754784000000,
     "to": 1786320000000,
-    "lastError": null
+    "lastError": null,
+    "retryCount": 0,
+    "nextRetryAt": null
   },
   "coverage": {
     "from": 1769904000000,
@@ -117,6 +121,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - [x] 확정 봉 기준 status SSE 발행
 - [x] 장기 백필 중 API·실시간 수집 비차단 검증
 - [x] 전체 백엔드 회귀 테스트와 필수 품질 명령 통과
+- [x] 장기 백필 job의 영속적 자동 재시도(지수 백오프, 재시작 후 재개, 영구 오류만 최종 failed)
 
 백엔드 범위는 완료했다. Codex의 UI 작업이 남아 있어 이 문서는 계속 `in-progress`로 유지한다. 검증 결과는 문서 하단 "백엔드 검증 결과" 절 참고.
 
@@ -166,15 +171,16 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 | `feat/2-historical-backfill-worker` | 장기 백필 worker(cursor 저장, 재개, graceful stop) |
 | `feat/2-status-historical-sse-collector` | `status/status.ts` 통합, `historicalBackfill`/`coverage`, 확정봉 SSE, `onFirstLive`, 비동기 shutdown, index.ts 배선 |
 | `feat/2-candles-cursor-pagination` | candles 응답 `page.nextBefore`/`hasMore` |
-| `docs/2-update-checklist` | 이 문서 갱신 (현재 브랜치) |
+| `docs/2-update-checklist` | 이 문서 갱신 |
+| `feat/2-backfill-job-retry` | 장기 백필 job 영속적 자동 재시도(지수 백오프), `retrying` 상태·`retryCount`/`nextRetryAt` 노출 (현재 브랜치) |
 
 모두 로컬 `main`에 `--ff-only`로 반영되어 있고 원격 push는 하지 않았다.
 
 ### 자동 검증
 
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — workspace 전체(`packages/shared`, `apps/server`, `apps/web`) 통과.
-- `apps/server` 테스트 106개(신규 backfill_jobs 리포지토리·historicalWorker·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown 테스트 포함), `packages/shared` 4개, `apps/web` 10개(미수정, 회귀 없음) 모두 통과.
-- 새 필드(`historicalBackfill`, `coverage`, `page`)를 공용 스키마에 필수 필드로 추가했지만 `apps/web`의 typecheck/test/build 모두 회귀 없이 통과함을 확인했다(기존 코드가 이 값들을 아직 사용하지 않기 때문).
+- `apps/server` 테스트 115개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown·binanceRest 오류 분류 테스트 포함), `packages/shared` 4개, `apps/web` 10개(미수정, 회귀 없음) 모두 통과.
+- 새 필드(`historicalBackfill`, `coverage`, `page`, `historicalBackfill.retryCount`/`nextRetryAt`)를 공용 스키마에 필수 필드로 추가했지만 `apps/web`의 typecheck/test/build 모두 회귀 없이 통과함을 확인했다(기존 코드가 이 값들을 아직 사용하지 않기 때문).
 - 네트워크 호출은 fixture와 주입 가능한 clock/REST/WebSocket 더블로 대체했고 기본 테스트 스위트에는 포함하지 않았다.
 
 ### 실서버 스모크 테스트 (Binance 실연동)
@@ -184,11 +190,12 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - `GET /api/candles?interval=1d`에서 받은 `page.nextBefore`를 다음 요청의 `to`로 넘겨 과거 페이지를 정상적으로 이어받고, 더 이상 데이터가 없을 때 `hasMore: false`와 빈 배열을 확인.
 - 75초간 SSE(`/api/events`)를 구독해 확정 1분봉 저장 시 `event: status`가 정확히 발행됨을 확인(연결 상태 변화가 없어도 발행됨).
 - 잘못된 설정(`RETENTION_DAYS < BACKFILL_DAYS`)이 서버 시작 전 오류로 거부됨을 확인.
+- (재시도 기능 추가 후) `BACKFILL_DAYS=1`로 새 DB에서 실제 Binance 연동으로 기동 → 정상 완료된 job의 `/api/status`에 `historicalBackfill.retryCount: 0`, `nextRetryAt: null`이 노출됨을 확인. `SIGTERM` 전송 시 `shutdown started` → `collector stopped` → `shutdown complete`가 여전히 수 ms 내로 끝나 재시도 대기 로직 추가가 graceful shutdown 지연을 유발하지 않음을 확인. 실제 429/5xx나 네트워크 단절을 재현하는 재시도 경로 자체는 `historicalWorker.test.ts`의 주입 가능한 fetchKlines/sleep 더블로 검증했다(백오프 지연 값, 같은 페이지 재시도, 영구 오류 즉시 failed, 재시도 대기 중 stop() 즉시 반환, 재시작 후 retrying 상태 재개 포함).
 
 ### 남은 위험 / 다음 단계
 
-- UI(Codex) 작업이 전혀 시작되지 않았다. 이벤트 중심 동기화, 6h/1d 확정봉 트리거 재조회, cursor 기반 무한 스크롤, 백필 진행률/coverage 표시가 남아 있다.
-- `backfill_jobs`가 `failed` 상태가 되면 자동 재시도하지 않는다(설계상 의도, 재시도/취소 UI는 범위 제외). 운영자가 원인을 해결한 뒤 수동 개입이 필요할 수 있다는 점을 UI/운영 문서에 반영할 필요가 있다.
+- UI(Codex) 작업이 전혀 시작되지 않았다. 이벤트 중심 동기화, 6h/1d 확정봉 트리거 재조회, cursor 기반 무한 스크롤, 백필 진행률/coverage/재시도 상태 표시가 남아 있다.
+- `backfill_jobs`의 `failed`는 잘못된 요청 등 재시도로 해결되지 않는 영구 오류로만 확정되며, 이 경우에는 여전히 자동 재개하지 않는다(운영자의 수동 개입 필요, 재시도/취소 UI는 범위 제외). 일시적 오류는 이제 job이 살아있는 한 상한(`BACKFILL_RETRY_MAX_DELAY_MS`) 내에서 무기한 재시도하므로, Binance 쪽 장애가 오래 지속되면 job이 `retrying`에 계속 머무를 수 있다 — 별도 알림/모니터링은 이번 범위에 포함하지 않았다.
 - `BACKFILL_DAYS`(전체 목표 기간)와 `BACKFILL_WARMUP_HOURS`(동기 warmup 구간) 두 값의 관계를 UI에서 설명하지 않으면 사용자가 왜 "완료"와 "진행 중"이 공존하는지 혼동할 수 있다.
 - 365일 전체 백필을 끝까지 실행하는 장시간 테스트는 하지 않았다(수십~수백 초 규모로 축소한 값들로 페이지네이션·재개·비차단 동작의 정확성만 검증했다). 로직상 페이지 수만 늘어날 뿐 동일하게 동작해야 하지만, 실제 장시간 운영에서의 관찰은 하지 못했다.
 
