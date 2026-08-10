@@ -29,21 +29,30 @@ function statusClass(status: ConnectionStatus): string {
   return `connection-chip connection-chip--${status}`;
 }
 
-function CollectorCard({ status }: { status: SymbolStatus | undefined }) {
-  const symbol = status?.symbol ?? '—';
+function CollectorCard({
+  symbol,
+  status,
+}: {
+  symbol: (typeof SYMBOLS)[number];
+  status: SymbolStatus | undefined;
+}) {
   const connectionStatus = status?.connectionStatus ?? 'connecting';
+  const effectiveDelay =
+    status?.lastEventAt == null
+      ? null
+      : Math.max(status.delayMs ?? 0, Date.now() - status.lastEventAt);
 
   return (
     <article className="collector-card">
       <div>
-        <span className="asset-symbol">{symbol === '—' ? symbol : symbol.slice(0, 3)}</span>
+        <span className="asset-symbol">{symbol.slice(0, 3)}</span>
         <small>{symbol}</small>
       </div>
       <span className={statusClass(connectionStatus)}>{statusLabel(connectionStatus)}</span>
       <dl>
         <div>
           <dt>데이터 지연</dt>
-          <dd>{formatLag(status?.delayMs ?? null)}</dd>
+          <dd>{formatLag(effectiveDelay)}</dd>
         </div>
         <div>
           <dt>마지막 확정 봉</dt>
@@ -156,10 +165,15 @@ export function App() {
 
           <article className="metric-card panel">
             <span className="card-label">{dashboard.rangeHours}시간 완전성</span>
-            <strong>{dashboard.completeness.percentage.toFixed(2)}%</strong>
+            <strong>
+              {dashboard.candles.length > 0
+                ? `${dashboard.completeness.percentage.toFixed(2)}%`
+                : '—'}
+            </strong>
             <small>
-              {dashboard.completeness.actual.toLocaleString()} /{' '}
-              {dashboard.completeness.expected.toLocaleString()}개 확정 봉
+              {dashboard.candles.length > 0
+                ? `${dashboard.completeness.actual.toLocaleString()} / ${dashboard.completeness.expected.toLocaleString()}개 확정 봉`
+                : '데이터 준비 중'}
             </small>
           </article>
         </section>
@@ -213,6 +227,7 @@ export function App() {
               {SYMBOLS.map((symbol) => (
                 <CollectorCard
                   key={symbol}
+                  symbol={symbol}
                   status={dashboard.statuses.find((status) => status.symbol === symbol)}
                 />
               ))}
@@ -221,15 +236,23 @@ export function App() {
             <div className="integrity-summary">
               <div
                 className="integrity-ring"
-                style={{ '--integrity': `${dashboard.completeness.percentage * 3.6}deg` } as CSSProperties}
+                style={{
+                  '--integrity': `${dashboard.completeness.percentage * 3.6}deg`,
+                } as CSSProperties}
                 aria-hidden="true"
               >
-                <span>{Math.round(dashboard.completeness.percentage)}%</span>
+                <span>
+                  {dashboard.candles.length > 0
+                    ? `${Math.round(dashboard.completeness.percentage)}%`
+                    : '—'}
+                </span>
               </div>
               <div>
                 <span className="card-label">{dashboard.rangeHours}시간 데이터 완전성</span>
                 <strong>
-                  {dashboard.completeness.missing === 0
+                  {dashboard.candles.length === 0
+                    ? '확정 봉 분석 대기 중'
+                    : dashboard.completeness.missing === 0
                     ? '누락 없이 수집 중'
                     : `${dashboard.completeness.missing}개 봉 누락`}
                 </strong>

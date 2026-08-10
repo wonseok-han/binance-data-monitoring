@@ -677,6 +677,40 @@ tbody tr:hover {
   font-size: 10px;
 }
 
+.fatal-error {
+  display: flex;
+  width: min(480px, calc(100% - 40px));
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.fatal-error .brand-mark {
+  margin-bottom: 28px;
+}
+
+.fatal-error h1 {
+  margin-bottom: 14px;
+}
+
+.fatal-error > p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.fatal-error button {
+  margin-top: 16px;
+  padding: 10px 14px;
+  color: #111419;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  cursor: pointer;
+  font-weight: 750;
+}
+
 @media (max-width: 1080px) {
   .market-strip {
     grid-template-columns: repeat(3, 1fr);

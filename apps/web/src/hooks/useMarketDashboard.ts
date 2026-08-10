@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Candle, StatusResponse, SummaryResponse, SymbolStatus } from '@binance-monitoring/shared';
 import {
   ApiRequestError,
@@ -42,6 +42,11 @@ export function useMarketDashboard() {
   const [streamState, setStreamState] = useState<StreamState>('connecting');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectionRef = useRef({ symbol, rangeHours });
+
+  useEffect(() => {
+    selectionRef.current = { symbol, rangeHours };
+  }, [rangeHours, symbol]);
 
   const loadMarket = useCallback(
     async (signal?: AbortSignal) => {
@@ -89,8 +94,9 @@ export function useMarketDashboard() {
     const unsubscribe = subscribeToMarketEvents({
       onCandle: (event) => {
         setLastUpdatedAt(Date.now());
-        if (event.symbol !== symbol) return;
-        setCandles((current) => mergeCandle(current, event.candle, rangeHours));
+        const selection = selectionRef.current;
+        if (event.symbol !== selection.symbol) return;
+        setCandles((current) => mergeCandle(current, event.candle, selection.rangeHours));
         setSummary((current) =>
           current
             ? { ...current, currentPrice: event.candle.close, asOf: event.candle.updatedAt }
@@ -105,17 +111,20 @@ export function useMarketDashboard() {
     });
 
     return unsubscribe;
-  }, [rangeHours, symbol]);
+  }, []);
 
   useEffect(() => {
     const refreshTimer = window.setInterval(() => {
-      void Promise.all([getStatus(), getSummary(symbol)])
-        .then(([statusResponse, summaryResponse]) => {
+      void Promise.allSettled([
+        getStatus().then((statusResponse) => {
           setStatuses(statusResponse.symbols);
+          setLastUpdatedAt(Date.now());
+        }),
+        getSummary(symbol).then((summaryResponse) => {
           setSummary(summaryResponse);
           setLastUpdatedAt(Date.now());
-        })
-        .catch(() => undefined);
+        }),
+      ]);
     }, 30_000);
 
     return () => window.clearInterval(refreshTimer);
