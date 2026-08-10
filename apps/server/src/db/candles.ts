@@ -32,6 +32,14 @@ export function upsertCandles(db: DbHandle['db'], rows: RawCandle[]): void {
   });
 }
 
+export function getCandle(db: DbHandle['db'], symbol: string, openTime: number) {
+  return db
+    .select()
+    .from(candles)
+    .where(and(eq(candles.symbol, symbol), eq(candles.openTime, openTime)))
+    .get();
+}
+
 export function getLastClosedCandle(db: DbHandle['db'], symbol: string) {
   return db
     .select()
