@@ -1,6 +1,6 @@
 # 002. 백그라운드 백필과 차트 과거 탐색 개선
 
-- 상태: `done`
+- 상태: `in-progress`
 - 백엔드 담당: Claude
 - UI 담당: Codex
 - 기준 설계: `docs/DESIGN.md`
@@ -137,6 +137,46 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - [x] 데스크톱·모바일·접근성·오류 상태 검증
 - [x] 전체 프론트엔드 회귀 테스트와 필수 품질 명령 통과
 
+## 네트워크 안정성 보완 — 재개
+
+완료 후 실제 `pnpm dev` 조건에서 브라우저 요청과 API 구조화 로그를 함께 대조한 결과, 정상 조회 경로는 동작하지만 SSE 단절·복구와 초기 중복 요청에 결함이 확인되어 작업을 다시 연다.
+
+### 재현 결과
+
+- 초기 화면의 candles와 summary는 각각 1회 `200`이지만 `/api/status`는 React 개발 모드 StrictMode에서 동시에 2회 요청된다.
+- 35초 유휴 상태에서는 status, summary, candles 추가 요청이 없어 기존 30초 polling이 제거됐음을 확인했다.
+- 6시간봉 전환은 candles와 summary를 각각 1회 요청하고 모두 `200`을 받는다.
+- 이전 데이터 버튼은 `to=<nextBefore>`가 포함된 candles 요청을 정확히 1회 보내고 `200`을 받는다.
+- 활성 SSE 연결이 있는 상태에서 API 서버를 종료하면 `shutdown complete`까지 진행되지 않고 개발 runner가 서버를 강제 종료한다.
+- API 서버가 실제로 종료돼도 브라우저는 30초 이상 `실시간 연결됨`을 표시한다.
+- API 재기동 후 새 `/api/events` 연결과 snapshot 요청이 발생하지 않는다. 수동 `다시 시도`는 REST를 복구하지만 SSE는 `재연결 중`에 머문다.
+- API가 없는 상태에서 Vite proxy의 빈 오류 응답을 JSON으로 파싱해 `Unexpected end of JSON input`이 사용자에게 노출된다.
+- 위 네트워크 결함은 browser console error 없이도 발생하므로 console 확인만으로 통과 처리하지 않는다.
+
+### 백엔드 보완 — Claude
+
+- [ ] 활성 SSE 클라이언트를 추적하고 shutdown 시 HTTP drain 전에 명시적으로 종료
+- [ ] SSE 구독 중 `SIGTERM`에서도 정해진 순서로 `shutdown complete`까지 종료되는 통합 테스트 추가
+- [ ] 서버 종료가 Vite proxy를 거친 브라우저에도 스트림 종료로 전달되는지 실연동 검증
+
+### UI 보완 — Codex
+
+- [ ] AbortSignal을 사용하는 초기 snapshot도 같은 URL의 동시 요청을 공유해 StrictMode 중복 제거
+- [ ] EventSource의 브라우저 기본 재연결에만 의존하지 않고 명시적인 close·지수 백오프·재생성 구현
+- [ ] SSE 복구 후 status, summary, 현재 candle page를 정확히 한 번 재동기화
+- [ ] 빈 본문과 비 JSON 오류 응답을 안전하게 처리하고 사용자용 네트워크 오류 메시지 표시
+- [ ] 재연결 timer와 진행 중 요청을 unmount·종목 전환 시 정리하는 테스트 추가
+
+### 네트워크 재검증 조건
+
+- [ ] 최초 로드에서 status, summary, candles와 SSE 연결이 의도한 횟수만 발생하고 모두 정상 응답
+- [ ] 35초 유휴 상태에서 30초 polling이 발생하지 않음
+- [ ] 활성 SSE 상태에서 서버 종료 시 graceful shutdown 완료 및 UI가 재연결 상태로 전환
+- [ ] 서버 재기동 후 `/api/events` 재연결과 snapshot 1회 동기화 후 `실시간 연결됨` 복귀
+- [ ] API 장애와 복구 과정에서 예상하지 않은 `4xx`/`5xx`, 중복 요청, 기술적인 JSON 파싱 오류 문구가 없음
+- [ ] 보완 후 전체 테스트와 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` 통과
+- [ ] 최종 동작이 바뀌면 `docs/DESIGN.md`와 README를 함께 갱신하고 다시 `done`으로 이동
+
 ## 완료 조건
 
 - [x] `BACKFILL_DAYS=365`인 새 DB에서도 HTTP와 실시간 수집이 장기 백필 완료를 기다리지 않는다.
@@ -197,7 +237,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 - UI 테스트 22개에서 5분 안전망, 확정봉 기반 집계 재조회, SSE 재연결 snapshot, 동일 URL 요청 공유, cursor 병합·중복 제거와 차트 논리 위치 보존을 검증했다.
 - 실제 Binance 연동 화면에서 `to=<nextBefore>` 요청, 백필 진행률과 실제 보유 범위 갱신, 이전 데이터 버튼을 확인했다.
-- 데스크톱과 390px 모바일 화면에서 차트·운영 카드·테이블 배치를 확인했으며 브라우저 console 오류는 없었다.
+- 데스크톱과 390px 모바일 화면에서 차트·운영 카드·테이블 배치를 확인했다. 이후 별도 네트워크 QA에서 console 오류 없이 발생하는 SSE 결함을 확인해 위 보완 작업으로 다시 열었다.
 
 ## 남은 위험
 
