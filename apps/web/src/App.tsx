@@ -1,6 +1,7 @@
 import type { ConnectionStatus, SymbolStatus } from '@binance-monitoring/shared';
 import type { CSSProperties } from 'react';
 import { lazy, Suspense } from 'react';
+import { BackfillStatus } from './components/BackfillStatus';
 import { CandleTable } from './components/CandleTable';
 import { useMarketDashboard } from './hooks/useMarketDashboard';
 import {
@@ -72,6 +73,7 @@ function CollectorCard({
         </div>
       </dl>
       {status?.lastError ? <p className="collector-error">{status.lastError}</p> : null}
+      <BackfillStatus symbol={symbol} status={status} />
     </article>
   );
 }
@@ -225,9 +227,10 @@ export function App() {
                 candles={dashboard.candles}
                 interval={dashboard.interval}
                 loading={isLoading}
-                canLoadPrevious={dashboard.page.hasMore}
+                canLoadPrevious={dashboard.canLoadPrevious}
                 loadingPrevious={dashboard.loadingPrevious}
                 onLoadPrevious={dashboard.loadPrevious}
+                backfillInProgress={backfillInProgress}
               />
             </Suspense>
           </article>
@@ -293,10 +296,10 @@ export function App() {
           <CandleTable
             candles={dashboard.candles}
             interval={dashboard.interval}
-            canLoadPrevious={dashboard.page.hasMore}
+            canLoadPrevious={dashboard.canLoadPrevious}
             loadingPrevious={dashboard.loadingPrevious}
             onLoadPrevious={dashboard.loadPrevious}
-            backfillInProgress={!dashboard.page.hasMore && backfillInProgress}
+            backfillInProgress={!dashboard.canLoadPrevious && backfillInProgress}
           />
         </section>
       </main>

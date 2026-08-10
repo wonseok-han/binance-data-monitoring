@@ -1,4 +1,10 @@
-import type { Candle, Completeness24h, ConnectionStatus, Interval } from '@binance-monitoring/shared';
+import type {
+  BackfillJobStatus,
+  Candle,
+  Completeness24h,
+  ConnectionStatus,
+  Interval,
+} from '@binance-monitoring/shared';
 
 export const MINUTE_MS = 60_000;
 
@@ -81,6 +87,18 @@ export function formatUtcDateTime(value: number | null): string {
   }).format(value);
 }
 
+export function formatUtcDate(value: number | null): string {
+  if (value == null) return '—';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(value)
+    .replaceAll('-', '.');
+}
+
 export function formatChartTime(value: number, interval: Interval): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'UTC',
@@ -98,5 +116,15 @@ export function statusLabel(status: ConnectionStatus): string {
     live: '정상 수집',
     reconnecting: '재연결 중',
     stale: '데이터 지연',
+  }[status];
+}
+
+export function backfillStatusLabel(status: BackfillJobStatus): string {
+  return {
+    pending: '백필 대기',
+    running: '백필 중',
+    retrying: '재시도 대기',
+    completed: '백필 완료',
+    failed: '확인 필요',
   }[status];
 }

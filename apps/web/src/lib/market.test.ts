@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  backfillStatusLabel,
   completenessPercentage,
   formatChartTime,
   formatLag,
   formatPercent,
+  formatUtcDate,
   intervalLabel,
   intervalLimit,
   mergeCandles,
@@ -76,5 +78,11 @@ describe('formatters', () => {
     expect(formatPercent(1.234)).toBe('+1.23%');
     expect(formatPercent(-0.5)).toBe('-0.50%');
     expect(formatPercent(null)).toBe('—');
+  });
+
+  it('formats UTC coverage dates and backfill status labels', () => {
+    expect(formatUtcDate(Date.UTC(2026, 7, 10))).toBe('2026.08.10');
+    expect(backfillStatusLabel('retrying')).toBe('재시도 대기');
+    expect(backfillStatusLabel('failed')).toBe('확인 필요');
   });
 });

@@ -222,8 +222,17 @@ export function useMarketDashboard() {
     return () => window.clearInterval(refreshTimer);
   }, [interval, symbol]);
 
+  const selectedStatus = statuses.find((status) => status.symbol === symbol);
+  const oldestOpenTime = candles[0]?.openTime;
+  const coverageHasOlder =
+    page.nextBefore != null &&
+    oldestOpenTime != null &&
+    selectedStatus?.coverage.from != null &&
+    selectedStatus.coverage.from < oldestOpenTime;
+  const canLoadPrevious = page.hasMore || coverageHasOlder;
+
   const loadPrevious = useCallback(async () => {
-    if (!symbol || loadingPreviousRef.current || !page.hasMore || page.nextBefore == null) return;
+    if (!symbol || loadingPreviousRef.current || !canLoadPrevious || page.nextBefore == null) return;
     const requestedSelection = { symbol, interval };
     loadingPreviousRef.current = true;
     setLoadingPrevious(true);
@@ -247,9 +256,8 @@ export function useMarketDashboard() {
         selectionRef.current.interval === requestedSelection.interval
       ) setLoadingPrevious(false);
     }
-  }, [interval, page.hasMore, page.nextBefore, symbol]);
+  }, [canLoadPrevious, interval, page.nextBefore, symbol]);
 
-  const selectedStatus = statuses.find((status) => status.symbol === symbol);
   const completeness = useMemo(() => {
     const value = selectedStatus?.completeness24h;
     return {
@@ -268,6 +276,7 @@ export function useMarketDashboard() {
     setInterval,
     candles,
     page,
+    canLoadPrevious,
     loadingPrevious,
     loadPrevious,
     summary,

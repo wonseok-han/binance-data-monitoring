@@ -21,6 +21,7 @@ interface MarketChartsProps {
   canLoadPrevious: boolean;
   loadingPrevious: boolean;
   onLoadPrevious: () => void;
+  backfillInProgress: boolean;
 }
 
 function timeToMilliseconds(time: Time): number {
@@ -36,6 +37,7 @@ export function MarketCharts({
   canLoadPrevious,
   loadingPrevious,
   onLoadPrevious,
+  backfillInProgress,
 }: MarketChartsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -181,11 +183,19 @@ export function MarketCharts({
         <span className="empty-icon" aria-hidden="true">
           ↗
         </span>
-        <strong>{loading ? '차트 데이터를 불러오는 중입니다' : '표시할 시세가 없습니다'}</strong>
+        <strong>
+          {loading
+            ? '차트 데이터를 불러오는 중입니다'
+            : backfillInProgress
+              ? '과거 데이터 백필 중'
+              : '표시할 시세가 없습니다'}
+        </strong>
         <small>
           {loading
             ? `${intervalLabel(interval)} 데이터를 준비하고 있습니다.`
-            : '백필이 완료되면 가격 흐름이 표시됩니다.'}
+            : backfillInProgress
+              ? '과거 구간을 수집하고 있습니다. 실시간 데이터는 계속 갱신됩니다.'
+              : '수집 데이터가 준비되면 가격 흐름이 표시됩니다.'}
         </small>
       </div>
     );

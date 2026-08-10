@@ -126,4 +126,18 @@ describe('useMarketDashboard synchronization', () => {
       expect(api.getCandles).toHaveBeenCalledOnce();
     });
   });
+
+  it('enables the next cursor when background coverage has expanded past the oldest candle', async () => {
+    api.getCandles.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      interval: '1m',
+      candles: [candle(true)],
+      page: { nextBefore: 119_999, hasMore: false },
+    });
+    const { result } = renderHook(() => useMarketDashboard());
+
+    await waitFor(() => expect(result.current.requestState).toBe('ready'));
+    expect(result.current.page.hasMore).toBe(false);
+    expect(result.current.canLoadPrevious).toBe(true);
+  });
 });

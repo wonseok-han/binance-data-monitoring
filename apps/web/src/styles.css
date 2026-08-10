@@ -508,7 +508,7 @@ h2 {
   background: rgba(255, 107, 120, 0.1);
 }
 
-.collector-card dl {
+.collector-card > dl {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: 1fr 1fr;
@@ -518,17 +518,17 @@ h2 {
   border-top: 1px solid var(--line-soft);
 }
 
-.collector-card dl div {
+.collector-card > dl div {
   display: grid;
   gap: 4px;
 }
 
-.collector-card dt {
+.collector-card > dl dt {
   color: var(--faint);
   font-size: 9px;
 }
 
-.collector-card dd {
+.collector-card > dl dd {
   margin: 0;
   color: #cbd1da;
   font-size: 11px;
@@ -546,6 +546,109 @@ h2 {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.backfill-status {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 9px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.backfill-status__heading,
+.backfill-status__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.backfill-status__heading > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.backfill-state {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.backfill-state--pending,
+.backfill-state--running,
+.backfill-state--retrying {
+  color: var(--accent);
+}
+
+.backfill-state--completed {
+  color: var(--green);
+}
+
+.backfill-state--failed {
+  color: var(--red);
+}
+
+.backfill-progress {
+  overflow: hidden;
+  height: 5px;
+  border-radius: 999px;
+  background: #242a31;
+}
+
+.backfill-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.backfill-status__meta {
+  color: var(--faint);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.backfill-details {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0 0;
+}
+
+.backfill-details div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.backfill-details dt {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.backfill-details dd {
+  margin: 0;
+  color: #cbd1da;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.backfill-error {
+  overflow: hidden;
+  margin: 0;
+  padding: 8px 9px;
+  color: #d7ae63;
+  border-radius: 6px;
+  background: rgba(245, 182, 66, 0.08);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backfill-error--failed {
+  color: #ff9ca5;
+  background: rgba(255, 107, 120, 0.08);
 }
 
 .integrity-summary {
@@ -609,6 +712,29 @@ h2 {
 .table-scroll {
   overflow-x: auto;
   margin: 10px -8px -6px;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
+
+.table-pagination button {
+  min-width: 156px;
+  padding: 8px 12px;
+  color: #cdd3dc;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0c0f13;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.table-pagination button:disabled {
+  color: var(--faint);
+  cursor: wait;
 }
 
 table {
