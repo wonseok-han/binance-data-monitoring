@@ -68,6 +68,7 @@ describe('GET /api/events (SSE)', () => {
       lastClosedOpenTime: 1,
       delayMs: 0,
       lastError: null,
+      lastBackfill: null,
     });
 
     await readUntil('event: status');

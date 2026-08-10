@@ -43,6 +43,7 @@ describe('createEventBus', () => {
       lastClosedOpenTime: null,
       delayMs: null,
       lastError: null,
+      lastBackfill: null,
     });
 
     expect(listener).not.toHaveBeenCalled();

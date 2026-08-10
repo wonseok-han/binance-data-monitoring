@@ -34,6 +34,7 @@ describe('GET /api/status', () => {
       lastClosedOpenTime: null,
       delayMs: null,
       lastError: null,
+      lastBackfill: null,
     });
   });
 
@@ -47,5 +48,25 @@ describe('GET /api/status', () => {
 
     expect(btc.connectionStatus).toBe('live');
     expect(btc.delayMs).toBeGreaterThanOrEqual(5000);
+  });
+
+  it('surfaces the last backfill run recorded in collector_state', async () => {
+    const record = {
+      startedAt: 1000,
+      finishedAt: 1500,
+      durationMs: 500,
+      from: 0,
+      to: 999,
+      count: 42,
+      result: 'success' as const,
+      error: null,
+    };
+    upsertCollectorState(dbHandle.db, 'BTCUSDT', { lastBackfillJson: JSON.stringify(record) });
+
+    const response = await app.inject({ method: 'GET', url: '/api/status' });
+    const body = response.json();
+    const btc = body.symbols.find((entry: { symbol: string }) => entry.symbol === 'BTCUSDT');
+
+    expect(btc.lastBackfill).toEqual(record);
   });
 });

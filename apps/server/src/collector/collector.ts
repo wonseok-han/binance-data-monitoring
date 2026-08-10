@@ -1,9 +1,14 @@
 import type { DbHandle } from '../db/client.js';
 import { getLastClosedCandle, upsertCandles } from '../db/candles.js';
-import { getCollectorState, upsertCollectorState } from '../db/collectorState.js';
-import type { ConnectionStatus } from '../db/collectorState.js';
+import {
+  getCollectorState,
+  parseBackfillRecord,
+  serializeBackfillRecord,
+  upsertCollectorState,
+} from '../db/collectorState.js';
+import type { BackfillRunRecord, ConnectionStatus } from '../db/collectorState.js';
 import type { FetchKlines, RawCandle } from './binanceRest.js';
-import { runBackfill } from './backfill.js';
+import { computeBackfillRange, runBackfill } from './backfill.js';
 import { klineStreamUrl, parseKlineMessage } from './binanceWs.js';
 import type { WsConnection, WsFactory } from './binanceWs.js';
 import type { EventBus } from '../events/bus.js';
@@ -71,6 +76,7 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
           lastClosedOpenTime: state.lastClosedOpenTime,
           delayMs: state.lastEventAt != null ? now() - state.lastEventAt : null,
           lastError: state.lastError,
+          lastBackfill: parseBackfillRecord(state.lastBackfillJson),
         });
       }
     }
@@ -169,6 +175,24 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
     socket = deps.wsFactory(klineStreamUrl(deps.wsBaseUrl, symbol));
     attachHandlers(socket);
 
+    const backfillStartedAt = now();
+    const plannedRange = computeBackfillRange(deps.db, symbol, deps.backfillHours, backfillStartedAt);
+
+    function buildBackfillRecord(result: BackfillRunRecord['result'], count: number, error: string | null): string {
+      const finishedAt = now();
+      const record: BackfillRunRecord = {
+        startedAt: backfillStartedAt,
+        finishedAt,
+        durationMs: finishedAt - backfillStartedAt,
+        from: plannedRange?.startTime ?? null,
+        to: plannedRange?.endTime ?? null,
+        count,
+        result,
+        error,
+      };
+      return serializeBackfillRecord(record);
+    }
+
     runBackfill({ db: deps.db, fetchKlines: deps.fetchKlines, now }, symbol, deps.backfillHours)
       .then((backfilledCount) => {
         if (stopped) return;
@@ -179,6 +203,7 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
         const lastClosed = getLastClosedCandle(deps.db, symbol);
         updateState({
           lastError: null,
+          lastBackfillJson: buildBackfillRecord('success', backfilledCount, null),
           ...(lastClosed ? { lastClosedOpenTime: lastClosed.openTime } : {}),
           ...(socketOpen ? { connectionStatus: 'live' as const } : {}),
         });
@@ -188,7 +213,11 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
       .catch((error: unknown) => {
         logger.error('backfill failed', { symbol, error: String(error) });
         if (stopped) return;
-        updateState({ connectionStatus: 'reconnecting', lastError: String(error) });
+        updateState({
+          connectionStatus: 'reconnecting',
+          lastError: String(error),
+          lastBackfillJson: buildBackfillRecord('error', 0, String(error)),
+        });
         socket?.close();
       });
   }

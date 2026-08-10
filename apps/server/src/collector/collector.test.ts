@@ -112,6 +112,61 @@ describe('startCollector', () => {
     collector.stop();
   });
 
+  it('records a successful backfill run with its range, count, and duration', async () => {
+    const { factory } = createFakeWsFactory();
+    const fetchKlines = vi.fn().mockResolvedValue([]);
+
+    const collector = startCollector(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      wsFactory: factory,
+      wsBaseUrl: WS_BASE_URL,
+      backfillHours: 1,
+      staleAfterSeconds: 10,
+      now: () => NOW,
+    });
+
+    await flushMicrotasks();
+
+    const state = getCollectorState(dbHandle.db, SYMBOL);
+    const record = JSON.parse(state!.lastBackfillJson!);
+
+    expect(record.result).toBe('success');
+    expect(record.count).toBe(0);
+    expect(record.error).toBeNull();
+    expect(record.from).not.toBeNull();
+    expect(record.to).not.toBeNull();
+    expect(record.durationMs).toBeGreaterThanOrEqual(0);
+
+    collector.stop();
+  });
+
+  it('records a failed backfill run with the error message', async () => {
+    const { factory } = createFakeWsFactory();
+    const fetchKlines = vi.fn().mockRejectedValue(new Error('binance unreachable'));
+
+    const collector = startCollector(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      wsFactory: factory,
+      wsBaseUrl: WS_BASE_URL,
+      backfillHours: 1,
+      staleAfterSeconds: 10,
+      now: () => NOW,
+    });
+
+    await flushMicrotasks();
+
+    const state = getCollectorState(dbHandle.db, SYMBOL);
+    const record = JSON.parse(state!.lastBackfillJson!);
+
+    expect(record.result).toBe('error');
+    expect(record.count).toBe(0);
+    expect(record.error).toContain('binance unreachable');
+
+    collector.stop();
+  });
+
   it('reconnects with backoff after a disconnect and gap-fills via backfill again', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     const { factory, instances } = createFakeWsFactory();

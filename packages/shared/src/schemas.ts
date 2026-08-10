@@ -42,6 +42,18 @@ export const CandlesResponseSchema = z.object({
 });
 export type CandlesResponse = z.infer<typeof CandlesResponseSchema>;
 
+export const BackfillRunSchema = z.object({
+  startedAt: z.number(),
+  finishedAt: z.number(),
+  durationMs: z.number(),
+  from: z.number().nullable(),
+  to: z.number().nullable(),
+  count: z.number(),
+  result: z.enum(['success', 'error']),
+  error: z.string().nullable(),
+});
+export type BackfillRun = z.infer<typeof BackfillRunSchema>;
+
 export const SymbolStatusSchema = z.object({
   symbol: z.string(),
   connectionStatus: ConnectionStatusSchema,
@@ -49,6 +61,7 @@ export const SymbolStatusSchema = z.object({
   lastClosedOpenTime: z.number().nullable(),
   delayMs: z.number().nullable(),
   lastError: z.string().nullable(),
+  lastBackfill: BackfillRunSchema.nullable(),
 });
 export type SymbolStatus = z.infer<typeof SymbolStatusSchema>;
 

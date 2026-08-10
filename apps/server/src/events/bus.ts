@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { RawCandle } from '../collector/binanceRest.js';
-import type { ConnectionStatus } from '../db/collectorState.js';
+import type { BackfillRunRecord, ConnectionStatus } from '../db/collectorState.js';
 
 export interface StatusEventPayload {
   symbol: string;
@@ -9,6 +9,7 @@ export interface StatusEventPayload {
   lastClosedOpenTime: number | null;
   delayMs: number | null;
   lastError: string | null;
+  lastBackfill: BackfillRunRecord | null;
 }
 
 export interface EventBus {

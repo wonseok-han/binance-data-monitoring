@@ -1,6 +1,6 @@
 import type { DbHandle } from '../db/client.js';
-import { getCollectorState } from '../db/collectorState.js';
-import type { ConnectionStatus } from '../db/collectorState.js';
+import { getCollectorState, parseBackfillRecord } from '../db/collectorState.js';
+import type { BackfillRunRecord, ConnectionStatus } from '../db/collectorState.js';
 
 export interface SymbolStatusResult {
   symbol: string;
@@ -9,6 +9,7 @@ export interface SymbolStatusResult {
   lastClosedOpenTime: number | null;
   delayMs: number | null;
   lastError: string | null;
+  lastBackfill: BackfillRunRecord | null;
 }
 
 export function buildStatus(db: DbHandle['db'], symbols: string[], now: number): SymbolStatusResult[] {
@@ -22,6 +23,7 @@ export function buildStatus(db: DbHandle['db'], symbols: string[], now: number):
       lastClosedOpenTime: state?.lastClosedOpenTime ?? null,
       delayMs: state?.lastEventAt != null ? now - state.lastEventAt : null,
       lastError: state?.lastError ?? null,
+      lastBackfill: parseBackfillRecord(state?.lastBackfillJson),
     };
   });
 }
