@@ -40,6 +40,10 @@ export const backfillJobs = sqliteTable('backfill_jobs', {
   processedCount: integer('processed_count').notNull().default(0),
   totalCount: integer('total_count').notNull(),
   lastError: text('last_error'),
+  /** 연속 재시도 횟수. 페이지 처리가 성공하면 0으로 초기화된다. */
+  retryCount: integer('retry_count').notNull().default(0),
+  /** 다음 재시도 예정 시각(backoff 대기 중일 때만 설정). */
+  nextRetryAt: integer('next_retry_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

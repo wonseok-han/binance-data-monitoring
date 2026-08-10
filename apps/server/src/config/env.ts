@@ -10,6 +10,8 @@ const envSchema = z.object({
   // 백필/보존
   BACKFILL_DAYS: z.coerce.number().int().positive().default(365),
   BACKFILL_WARMUP_HOURS: z.coerce.number().int().positive().default(24),
+  BACKFILL_RETRY_BASE_DELAY_MS: z.coerce.number().int().positive().default(1000),
+  BACKFILL_RETRY_MAX_DELAY_MS: z.coerce.number().int().positive().default(300_000),
   RETENTION_DAYS: z.coerce.number().int().positive().default(365),
   RETENTION_CLEANUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(6),
 
@@ -34,6 +36,8 @@ export interface AppConfig {
   BINANCE_WS_URL: string;
   BACKFILL_DAYS: number;
   BACKFILL_WARMUP_HOURS: number;
+  BACKFILL_RETRY_BASE_DELAY_MS: number;
+  BACKFILL_RETRY_MAX_DELAY_MS: number;
   RETENTION_DAYS: number;
   RETENTION_CLEANUP_INTERVAL_HOURS: number;
   STALE_AFTER_SECONDS: number;

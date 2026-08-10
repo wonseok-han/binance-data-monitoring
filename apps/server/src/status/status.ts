@@ -15,6 +15,8 @@ export interface HistoricalBackfillStatus {
   from: number;
   to: number;
   lastError: string | null;
+  retryCount: number;
+  nextRetryAt: number | null;
 }
 
 export interface CoverageRange {
@@ -50,6 +52,8 @@ function buildHistoricalBackfillStatus(
     from: job.fromTime,
     to: job.toTime,
     lastError: job.lastError,
+    retryCount: job.retryCount,
+    nextRetryAt: job.nextRetryAt,
   };
 }
 

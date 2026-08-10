@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BinanceRestError, createBinanceRestClient } from './binanceRest.js';
+import { BinanceRestError, createBinanceRestClient, isRetryableBinanceError } from './binanceRest.js';
 
 const SAMPLE_KLINE = [
   1_700_000_000_000,
@@ -100,5 +100,23 @@ describe('createBinanceRestClient', () => {
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(sleepImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('isRetryableBinanceError', () => {
+  it('treats rate limit and server errors as retryable', () => {
+    expect(isRetryableBinanceError(new BinanceRestError('rate limited', 429))).toBe(true);
+    expect(isRetryableBinanceError(new BinanceRestError('server error', 503))).toBe(true);
+    expect(isRetryableBinanceError(new BinanceRestError('banned', 418))).toBe(true);
+  });
+
+  it('treats other client errors as permanent', () => {
+    expect(isRetryableBinanceError(new BinanceRestError('bad request', 400))).toBe(false);
+    expect(isRetryableBinanceError(new BinanceRestError('not found', 404))).toBe(false);
+  });
+
+  it('treats unknown errors (network failures, timeouts) as retryable', () => {
+    expect(isRetryableBinanceError(new TypeError('fetch failed'))).toBe(true);
+    expect(isRetryableBinanceError(new Error('unexpected'))).toBe(true);
   });
 });

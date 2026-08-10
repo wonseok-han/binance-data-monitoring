@@ -2,7 +2,7 @@ import { desc, eq } from 'drizzle-orm';
 import type { DbHandle } from './client.js';
 import { backfillJobs } from './schema.js';
 
-export type BackfillJobStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type BackfillJobStatus = 'pending' | 'running' | 'retrying' | 'completed' | 'failed';
 
 export interface CreateBackfillJobInput {
   symbol: string;
@@ -36,6 +36,8 @@ export function createBackfillJob(db: DbHandle['db'], input: CreateBackfillJobIn
       processedCount: 0,
       totalCount: input.totalCount,
       lastError: null,
+      retryCount: 0,
+      nextRetryAt: null,
       createdAt: input.now,
       updatedAt: input.now,
     })
@@ -49,6 +51,9 @@ export interface UpdateBackfillJobProgressInput {
   processedCount: number;
   status: BackfillJobStatus;
   lastError?: string | null;
+  /** 연속 재시도 횟수. 생략하면 기존 값을 유지하지 않고 0으로 초기화한다(성공 진행 갱신 시 기본값). */
+  retryCount?: number;
+  nextRetryAt?: number | null;
   now: number;
 }
 
@@ -63,6 +68,8 @@ export function updateBackfillJobProgress(
       processedCount: update.processedCount,
       status: update.status,
       lastError: update.lastError === undefined ? null : update.lastError,
+      retryCount: update.retryCount ?? 0,
+      nextRetryAt: update.nextRetryAt === undefined ? null : update.nextRetryAt,
       updatedAt: update.now,
     })
     .where(eq(backfillJobs.id, id))

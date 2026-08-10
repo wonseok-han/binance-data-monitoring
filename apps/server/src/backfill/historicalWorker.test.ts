@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbHandle } from '../db/client.js';
 import { countCandles, getEarliestCandle, upsertCandles } from '../db/candles.js';
-import { getLatestBackfillJob } from '../db/backfillJobs.js';
+import { createBackfillJob, getLatestBackfillJob, updateBackfillJobProgress } from '../db/backfillJobs.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { createFixtureFetchKlines, makeCandleSeries } from '../../test/fixtures/candles.js';
 import { DAY_MS, MINUTE_MS } from '../config/constants.js';
+import { BinanceRestError } from '../collector/binanceRest.js';
 import { startHistoricalBackfillWorker } from './historicalWorker.js';
 
 const SYMBOL = 'BTCUSDT';
@@ -85,25 +86,176 @@ describe('startHistoricalBackfillWorker', () => {
     expect(getLatestBackfillJob(dbHandle.db, SYMBOL)).toBeUndefined();
   });
 
-  it('marks the job failed and stops paging when a REST request fails', async () => {
+  it('marks the job failed immediately on a permanent (non-retryable) error, without retrying', async () => {
     const backfillDays = 2;
     const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
     upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, targetFrom + DAY_MS, 1));
 
-    const fetchKlines = vi.fn().mockRejectedValue(new Error('binance unreachable'));
+    const fetchKlines = vi.fn().mockRejectedValue(new BinanceRestError('bad request', 400));
+    const sleep = vi.fn(() => Promise.resolve());
     const worker = startHistoricalBackfillWorker(SYMBOL, {
       db: dbHandle.db,
       fetchKlines,
       backfillDays,
       now: () => NOW,
+      sleep,
     });
 
     await worker.whenDone();
 
     const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
     expect(job?.status).toBe('failed');
-    expect(job?.lastError).toContain('binance unreachable');
+    expect(job?.lastError).toContain('bad request');
+    expect(job?.retryCount).toBe(0);
     expect(fetchKlines).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('retries a transient error with backoff and resumes the same page without losing progress', async () => {
+    const backfillDays = 1;
+    const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+    const coveredFrom = targetFrom + 5 * MINUTE_MS;
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, coveredFrom, 1));
+
+    const fullRange = makeCandleSeries(SYMBOL, targetFrom, 5);
+    const fetchKlines = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+      .mockResolvedValueOnce(fullRange);
+    const sleep = vi.fn(() => Promise.resolve());
+
+    const worker = startHistoricalBackfillWorker(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      backfillDays,
+      pageSize: 100,
+      now: () => NOW,
+      sleep,
+      retryBaseDelayMs: 1000,
+      retryMaxDelayMs: 30_000,
+    });
+
+    await worker.whenDone();
+
+    const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
+    expect(job?.status).toBe('completed');
+    expect(job?.retryCount).toBe(0); // 성공 후 초기화
+    expect(job?.processedCount).toBe(5);
+    expect(fetchKlines).toHaveBeenCalledTimes(2);
+    expect(fetchKlines.mock.calls[1]![0]).toEqual(fetchKlines.mock.calls[0]![0]); // 같은 페이지 재시도
+    expect(sleep).toHaveBeenCalledWith(1000); // 첫 재시도는 base delay
+  });
+
+  it('caps retry backoff at retryMaxDelayMs and keeps retrying indefinitely on transient errors', async () => {
+    const backfillDays = 1;
+    const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+    const coveredFrom = targetFrom + 5 * MINUTE_MS;
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, coveredFrom, 1));
+
+    const fullRange = makeCandleSeries(SYMBOL, targetFrom, 5);
+    const fetchKlines = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(fullRange);
+    const sleep = vi.fn((_ms: number) => Promise.resolve());
+
+    const worker = startHistoricalBackfillWorker(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      backfillDays,
+      pageSize: 100,
+      now: () => NOW,
+      sleep,
+      retryBaseDelayMs: 1000,
+      retryMaxDelayMs: 2500,
+    });
+
+    await worker.whenDone();
+
+    expect(sleep.mock.calls.map((call) => call[0])).toEqual([1000, 2000, 2500]); // 1000, 2000, 4000→cap 2500
+    expect(getLatestBackfillJob(dbHandle.db, SYMBOL)?.status).toBe('completed');
+  });
+
+  it('resumes a job left in retrying status after a restart, waiting out any remaining backoff', async () => {
+    const backfillDays = 1;
+    const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+    const coveredFrom = targetFrom + 5 * MINUTE_MS;
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, coveredFrom, 1));
+
+    // 이전 실행이 일시적 오류로 retrying 상태를 남기고 재시작된 상황을 재현한다.
+    const { id } = createBackfillJob(dbHandle.db, {
+      symbol: SYMBOL,
+      fromTime: targetFrom,
+      toTime: coveredFrom - MINUTE_MS,
+      cursor: coveredFrom - MINUTE_MS,
+      totalCount: 5,
+      now: NOW - 10_000,
+    });
+    updateBackfillJobProgress(dbHandle.db, id, {
+      cursor: coveredFrom - MINUTE_MS,
+      processedCount: 0,
+      status: 'retrying',
+      lastError: 'temporary error',
+      retryCount: 3,
+      nextRetryAt: NOW - 1000, // 이미 지난 재시도 시각
+      now: NOW - 1000,
+    });
+
+    const fullRange = makeCandleSeries(SYMBOL, targetFrom, 5);
+    const fetchKlines = vi.fn(createFixtureFetchKlines(fullRange));
+    const sleep = vi.fn(() => Promise.resolve());
+
+    const worker = startHistoricalBackfillWorker(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      backfillDays,
+      pageSize: 100,
+      now: () => NOW,
+      sleep,
+    });
+
+    await worker.whenDone();
+
+    const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
+    expect(job?.id).toBe(id); // 같은 job을 이어서 처리
+    expect(job?.status).toBe('completed');
+    expect(job?.retryCount).toBe(0);
+  });
+
+  it('stop() resolves promptly even while waiting out a retry backoff, without failing or completing the job', async () => {
+    const backfillDays = 1;
+    const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+    const coveredFrom = targetFrom + 5 * MINUTE_MS;
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, coveredFrom, 1));
+
+    const fetchKlines = vi.fn().mockRejectedValue(new Error('network error'));
+    let releaseSleep!: () => void;
+    const sleepGate = new Promise<void>((resolve) => {
+      releaseSleep = resolve;
+    });
+    const sleep = vi.fn(() => sleepGate); // stop() 없이는 절대 스스로 풀리지 않는다.
+
+    const worker = startHistoricalBackfillWorker(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      backfillDays,
+      pageSize: 100,
+      now: () => NOW,
+      sleep,
+      retryBaseDelayMs: 1000,
+      retryMaxDelayMs: 300_000,
+    });
+
+    await vi.waitFor(() => expect(sleep).toHaveBeenCalled());
+
+    await worker.stop(); // sleepGate가 풀리지 않아도 hang 없이 반환되어야 한다.
+
+    const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
+    expect(job?.status).toBe('retrying'); // backoff 대기 중에 멈췄고 failed/completed는 아니다.
+
+    releaseSleep();
   });
 
   it('finishes the in-flight page before stop() resolves, then resumes from the persisted cursor after a restart', async () => {

@@ -64,6 +64,19 @@ function isRetryable(status: number): boolean {
   return RETRYABLE_STATUS.has(status) || status >= 500;
 }
 
+/**
+ * 장기 백필처럼 REST 클라이언트의 내장 재시도(maxRetries)를 소진한 뒤에도
+ * job 단위로 계속 재시도할지 판단한다. `BinanceRestError`는 HTTP 상태로
+ * 판단하고, 그 외(네트워크 오류, 타임아웃, 응답 파싱 실패 등 알 수 없는 오류)는
+ * 원인을 알 수 없으므로 일시적인 것으로 간주해 재시도 대상으로 취급한다.
+ */
+export function isRetryableBinanceError(error: unknown): boolean {
+  if (error instanceof BinanceRestError) {
+    return isRetryable(error.status);
+  }
+  return true;
+}
+
 function retryDelayFor(response: Response, baseDelayMs: number, attempt: number): number {
   const retryAfter = response.headers.get('retry-after');
   if (retryAfter) {

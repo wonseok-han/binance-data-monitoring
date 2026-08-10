@@ -5,7 +5,7 @@ BTCUSDT와 ETHUSDT의 Binance 시세를 수집·복구하고 실시간 운영 �
 ## 주요 기능 및 구현
 
 - **실시간 수집과 복구**: Binance 1분봉 WebSocket을 먼저 연결해 이벤트를 버퍼링한 뒤, 최근 누락 구간과 `BACKFILL_WARMUP_HOURS`만 우선 REST 백필해 실시간 전환을 지연시키지 않는다. 최초 실행과 재시작 모두 같은 흐름을 사용하며 `(symbol, open_time)` upsert로 중복을 방지한다.
-- **백그라운드 장기 백필**: 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태(cursor)를 `backfill_jobs`에 저장해 재시작 시 이어서 처리하고, HTTP·실시간 수집을 막지 않는다.
+- **백그라운드 장기 백필**: 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태(cursor)를 `backfill_jobs`에 저장해 재시작 시 이어서 처리하고, HTTP·실시간 수집을 막지 않는다. 일시적 오류는 job을 실패시키지 않고 지수 백오프 후 자동 재시도하며, 영구 오류만 최종 `failed`로 확정한다.
 - **안정적인 운영 상태 추적**: 재연결 지수 백오프, 누락 구간 복구, stale 감지, 최근 오류와 데이터 지연을 종목별로 기록한다.
 - **다중 봉 조회**: 저장된 1분봉을 원본으로 유지하고 조회 시 UTC 경계에 맞춰 6시간봉과 일봉으로 집계하며, 커서 기반 페이지네이션으로 과거 데이터를 이어서 조회한다.
 - **REST·SSE 제공**: 캔들, 요약, 수집 상태와 헬스 체크 API를 제공하고, DB 반영이 끝난 이벤트만 SSE로 전달한다. 확정 1분봉 저장 시 상태 스냅샷도 함께 발행한다.
@@ -114,6 +114,8 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | `SYMBOLS` | `BTCUSDT,ETHUSDT` | 수집할 종목 (쉼표 구분, API의 symbol 허용 목록도 이 값으로 결정된다) |
 | `BACKFILL_DAYS` | `365` | 새 DB가 최종 확보할 전체 과거 기간 (일), 양의 정수. `RETENTION_DAYS`보다 크면 시작을 거부한다 |
 | `BACKFILL_WARMUP_HOURS` | `24` | 실시간 전환 전 우선 채우는 최근 구간 (시간), 양의 정수. 나머지는 백그라운드로 채운다 |
+| `BACKFILL_RETRY_BASE_DELAY_MS` | `1000` | 백그라운드 백필 job이 일시적 오류(네트워크 오류, Binance 429/5xx) 후 재시도하는 지수 백오프 시작 지연 (ms) |
+| `BACKFILL_RETRY_MAX_DELAY_MS` | `300000` | 위 지수 백오프의 최대 지연 상한 (ms) |
 | `RETENTION_DAYS` | `365` | 1분봉 보존 기간 (이보다 오래된 봉은 정리 작업이 삭제), 양의 정수. `BACKFILL_DAYS`보다 작으면 시작을 거부한다 |
 | `RETENTION_CLEANUP_INTERVAL_HOURS` | `6` | 만료 데이터 정리 작업 실행 주기 (시간), 양의 정수 |
 | `STALE_AFTER_SECONDS` | `10` | 이 시간 동안 이벤트가 없으면 `stale`로 표시하고 재연결 |
@@ -134,14 +136,16 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | --- | --- | --- |
 | GET | `/health/live` | 프로세스 생존 확인 (DB 접근 없음) |
 | GET | `/health/ready` | DB 접근 가능 여부까지 확인 |
-| GET | `/api/status` | 종목별 연결 상태, 지연, 마지막 백필 결과, 장기 백필 진행률(`historicalBackfill`), 데이터 보유 범위(`coverage`), 최근 24시간 완전성 |
+| GET | `/api/status` | 종목별 연결 상태, 지연, 마지막 백필 결과, 장기 백필 진행률·재시도 상태(`historicalBackfill`), 데이터 보유 범위(`coverage`), 최근 24시간 완전성 |
 | GET | `/api/candles?symbol=BTCUSDT&interval=1m&from=&to=&limit=500` | 기간별 봉 조회 (`interval`: `1m`\|`6h`\|`1d`, 기본 `1m`; open_time 오름차순; `limit`은 집계 후 봉 개수에 적용, 기본 500 · 최대 2000) |
 | GET | `/api/summary?symbol=BTCUSDT` | 현재가, 1시간 등락률, 1시간 거래대금 |
 | GET | `/api/events` | `candle`/`status` SSE 스트림 |
 
 `symbol`은 `SYMBOLS` 환경변수로 정해진 허용 목록으로 검증한다. `/api/summary`는 아직 데이터가 없는 종목에 대해 `404 NO_DATA`를 반환한다.
 
-`/api/candles` 응답에는 `page: { nextBefore, hasMore }`가 포함된다. `nextBefore`를 다음 요청의 `to`로 넘기면 더 과거 데이터를 커서 방식으로 이어서 조회할 수 있다. `hasMore`가 `false`이고 `historicalBackfill.status`가 `running`/`pending`이면 아직 그 구간까지 백필이 도달하지 못한 것이며, 데이터가 실제로 없는 것과 다르다.
+`/api/candles` 응답에는 `page: { nextBefore, hasMore }`가 포함된다. `nextBefore`를 다음 요청의 `to`로 넘기면 더 과거 데이터를 커서 방식으로 이어서 조회할 수 있다. `hasMore`가 `false`이고 `historicalBackfill.status`가 `running`/`pending`/`retrying`이면 아직 그 구간까지 백필이 도달하지 못한 것이며, 데이터가 실제로 없는 것과 다르다.
+
+`historicalBackfill.status`는 `pending`/`running`/`retrying`/`completed`/`failed` 중 하나다. 일시적 오류(네트워크 오류, Binance 429/5xx)는 job을 `failed`로 만들지 않고 `retrying` 상태로 지수 백오프 후 같은 페이지를 자동 재시도한다(`retryCount`, `nextRetryAt` 필드로 진행 상태를 확인할 수 있다). 서버가 재시작돼도 재시도 상태와 남은 대기 시간이 보존되어 이어서 처리된다. 잘못된 요청처럼 재시도로 해결되지 않는 영구 오류만 `failed`로 확정되며, `failed` job은 자동 재시도하지 않는다(운영자의 수동 개입 필요).
 
 ## 저장소 구조
 
@@ -174,7 +178,7 @@ CLAUDE.md                 # Claude Code용 진입 문서
 - 백필 시작/종료 시각 계산과 재시작 후 이어받기 (`apps/server/src/collector/backfill.test.ts`)
 - REST 재시도/`Retry-After` 처리 (`apps/server/src/collector/binanceRest.test.ts`)
 - WebSocket 버퍼링→백필→flush→live 전환, 미확정→확정 봉 갱신, 재연결 gap-fill, stale 감지, onFirstLive 1회 호출, 확정봉 status SSE (`apps/server/src/collector/collector.test.ts`)
-- 장기 백필 worker의 페이지네이션, 실패 처리, graceful stop과 재시작 재개 (`apps/server/src/backfill/historicalWorker.test.ts`)
+- 장기 백필 worker의 페이지네이션, 영구/일시적 오류 분기, 지수 백오프 재시도, 재시도 중 graceful stop, 재시작 후 진행·재시도 상태 재개 (`apps/server/src/backfill/historicalWorker.test.ts`)
 - API 쿼리 검증, candles cursor 페이지네이션(`page.nextBefore`/`hasMore`), SSE 스트림 (`apps/server/src/http/**/*.test.ts`)
 - graceful shutdown 순서와 비동기 stop() 대기 (`apps/server/src/shutdown.test.ts`)
 - 데이터 완전성·봉 주기 표시, 금융 차트 데이터 변환과 최근 봉 테이블 (`apps/web/src/**/*.test.ts(x)`)

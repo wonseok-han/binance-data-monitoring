@@ -41,6 +41,8 @@ describe('backfill_jobs repository', () => {
       processedCount: 0,
       totalCount: 42,
       lastError: null,
+      retryCount: 0,
+      nextRetryAt: null,
       createdAt: 500,
       updatedAt: 500,
     });
@@ -91,6 +93,67 @@ describe('backfill_jobs repository', () => {
     });
 
     expect(getLatestBackfillJob(dbHandle.db, SYMBOL)?.lastError).toBe('binance unreachable');
+  });
+
+  it('persists retry count and the next retry time while retrying', () => {
+    const { id } = createBackfillJob(dbHandle.db, {
+      symbol: SYMBOL,
+      fromTime: 0,
+      toTime: 1000,
+      cursor: 1000,
+      totalCount: 100,
+      now: 0,
+    });
+
+    updateBackfillJobProgress(dbHandle.db, id, {
+      cursor: 1000,
+      processedCount: 0,
+      status: 'retrying',
+      lastError: 'temporary network error',
+      retryCount: 2,
+      nextRetryAt: 5000,
+      now: 1000,
+    });
+
+    expect(getLatestBackfillJob(dbHandle.db, SYMBOL)).toMatchObject({
+      status: 'retrying',
+      retryCount: 2,
+      nextRetryAt: 5000,
+      lastError: 'temporary network error',
+    });
+  });
+
+  it('resets retry count and next retry time when not provided', () => {
+    const { id } = createBackfillJob(dbHandle.db, {
+      symbol: SYMBOL,
+      fromTime: 0,
+      toTime: 1000,
+      cursor: 1000,
+      totalCount: 100,
+      now: 0,
+    });
+
+    updateBackfillJobProgress(dbHandle.db, id, {
+      cursor: 1000,
+      processedCount: 0,
+      status: 'retrying',
+      retryCount: 1,
+      nextRetryAt: 2000,
+      now: 500,
+    });
+
+    updateBackfillJobProgress(dbHandle.db, id, {
+      cursor: 900,
+      processedCount: 10,
+      status: 'running',
+      now: 1500,
+    });
+
+    expect(getLatestBackfillJob(dbHandle.db, SYMBOL)).toMatchObject({
+      status: 'running',
+      retryCount: 0,
+      nextRetryAt: null,
+    });
   });
 
   it('returns the most recently created job for a symbol', () => {

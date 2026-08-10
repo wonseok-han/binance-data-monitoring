@@ -68,7 +68,7 @@ export const Completeness24hSchema = z.object({
 });
 export type Completeness24h = z.infer<typeof Completeness24hSchema>;
 
-export const BackfillJobStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+export const BackfillJobStatusSchema = z.enum(['pending', 'running', 'retrying', 'completed', 'failed']);
 export type BackfillJobStatus = z.infer<typeof BackfillJobStatusSchema>;
 
 export const HistoricalBackfillSchema = z.object({
@@ -79,6 +79,10 @@ export const HistoricalBackfillSchema = z.object({
   from: z.number(),
   to: z.number(),
   lastError: z.string().nullable(),
+  /** 연속 재시도 횟수. 페이지 처리가 성공하면 0으로 초기화된다. */
+  retryCount: z.number(),
+  /** 다음 재시도 예정 시각(epoch ms). status가 `retrying`일 때만 값을 가진다. */
+  nextRetryAt: z.number().nullable(),
 });
 export type HistoricalBackfill = z.infer<typeof HistoricalBackfillSchema>;
 

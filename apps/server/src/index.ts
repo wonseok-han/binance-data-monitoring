@@ -55,6 +55,8 @@ const collectors = config.symbols.map((symbol) =>
           db: dbHandle.db,
           fetchKlines: restClient.fetchKlines,
           backfillDays: config.BACKFILL_DAYS,
+          retryBaseDelayMs: config.BACKFILL_RETRY_BASE_DELAY_MS,
+          retryMaxDelayMs: config.BACKFILL_RETRY_MAX_DELAY_MS,
           logger: collectorLogger,
           onProgress: () => {
             events.emitStatus(symbol, buildSymbolStatus(dbHandle.db, symbol, Date.now()));
