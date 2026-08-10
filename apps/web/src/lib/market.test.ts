@@ -5,7 +5,27 @@ import {
   formatLag,
   formatPercent,
   intervalLabel,
+  intervalLimit,
+  mergeCandles,
 } from './market';
+import type { Candle } from '@binance-monitoring/shared';
+
+function candle(openTime: number, close = String(openTime)): Candle {
+  return {
+    symbol: 'BTCUSDT',
+    openTime,
+    closeTime: openTime + 59_999,
+    open: '1',
+    high: '2',
+    low: '0.5',
+    close,
+    volume: '1',
+    quoteVolume: '1',
+    tradeCount: 1,
+    isClosed: true,
+    updatedAt: openTime + 60_000,
+  };
+}
 
 describe('completenessPercentage', () => {
   it('uses server-confirmed 24 hour counts', () => {
@@ -25,10 +45,23 @@ describe('interval presentation', () => {
     expect(intervalLabel('1m')).toBe('1분봉');
     expect(intervalLabel('6h')).toBe('6시간봉');
     expect(intervalLabel('1d')).toBe('일봉');
+    expect(intervalLimit('1d')).toBe(120);
   });
 
   it('includes the date on daily chart ticks', () => {
     expect(formatChartTime(Date.UTC(2026, 7, 10), '1d')).toContain('08');
+  });
+});
+
+describe('mergeCandles', () => {
+  it('prepends older candles, removes duplicate open times, and keeps updates', () => {
+    const result = mergeCandles(
+      [candle(120_000, 'old'), candle(180_000)],
+      [candle(60_000), candle(120_000, 'updated')],
+    );
+
+    expect(result.map((item) => item.openTime)).toEqual([60_000, 120_000, 180_000]);
+    expect(result[1]?.close).toBe('updated');
   });
 });
 

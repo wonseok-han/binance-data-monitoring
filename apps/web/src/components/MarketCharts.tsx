@@ -12,12 +12,15 @@ import {
 } from 'lightweight-charts';
 import { useEffect, useRef } from 'react';
 import { formatChartTime, formatCompactUsdt, formatPrice, intervalLabel } from '../lib/market';
-import { toFinancialChartData } from '../lib/chartData';
+import { preserveVisibleRangeAfterPrepend, toFinancialChartData } from '../lib/chartData';
 
 interface MarketChartsProps {
   candles: Candle[];
   interval: Interval;
   loading: boolean;
+  canLoadPrevious: boolean;
+  loadingPrevious: boolean;
+  onLoadPrevious: () => void;
 }
 
 function timeToMilliseconds(time: Time): number {
@@ -26,14 +29,31 @@ function timeToMilliseconds(time: Time): number {
   return Date.UTC(time.year, time.month - 1, time.day);
 }
 
-export function MarketCharts({ candles, interval, loading }: MarketChartsProps) {
+export function MarketCharts({
+  candles,
+  interval,
+  loading,
+  canLoadPrevious,
+  loadingPrevious,
+  onLoadPrevious,
+}: MarketChartsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const previousIntervalRef = useRef<Interval | null>(null);
+  const previousFirstOpenTimeRef = useRef<number | null>(null);
+  const loadPreviousRef = useRef(onLoadPrevious);
+  const canLoadPreviousRef = useRef(canLoadPrevious);
+  const loadingPreviousRef = useRef(loadingPrevious);
   const latest = candles.at(-1);
   const hasData = candles.length > 0;
+
+  useEffect(() => {
+    loadPreviousRef.current = onLoadPrevious;
+    canLoadPreviousRef.current = canLoadPrevious;
+    loadingPreviousRef.current = loadingPrevious;
+  }, [canLoadPrevious, loadingPrevious, onLoadPrevious]);
 
   useEffect(() => {
     if (!hasData) return;
@@ -100,8 +120,22 @@ export function MarketCharts({ candles, interval, loading }: MarketChartsProps) 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
+    previousFirstOpenTimeRef.current = null;
+
+    const handleVisibleRange = (range: { from: number; to: number } | null) => {
+      if (
+        range &&
+        range.from <= 10 &&
+        canLoadPreviousRef.current &&
+        !loadingPreviousRef.current
+      ) {
+        loadPreviousRef.current();
+      }
+    };
+    chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRange);
 
     return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRange);
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -115,6 +149,12 @@ export function MarketCharts({ candles, interval, loading }: MarketChartsProps) 
     const volumeSeries = volumeSeriesRef.current;
     if (!chart || !candleSeries || !volumeSeries) return;
 
+    const previousFirstOpenTime = previousFirstOpenTimeRef.current;
+    const visibleRange = chart.timeScale().getVisibleLogicalRange();
+    const prependedCount =
+      previousFirstOpenTime == null
+        ? 0
+        : candles.filter((candle) => candle.openTime < previousFirstOpenTime).length;
     const data = toFinancialChartData(candles);
     candleSeries.setData(
       data.candlesticks.map((point) => ({ ...point, time: point.time as UTCTimestamp })),
@@ -123,10 +163,15 @@ export function MarketCharts({ candles, interval, loading }: MarketChartsProps) 
       data.volumes.map((point) => ({ ...point, time: point.time as UTCTimestamp })),
     );
 
-    if (previousIntervalRef.current !== interval || candles.length <= 1) {
+    if (prependedCount > 0 && visibleRange) {
+      chart
+        .timeScale()
+        .setVisibleLogicalRange(preserveVisibleRangeAfterPrepend(visibleRange, prependedCount));
+    } else if (previousIntervalRef.current !== interval || candles.length <= 1) {
       chart.timeScale().fitContent();
       previousIntervalRef.current = interval;
     }
+    previousFirstOpenTimeRef.current = candles[0]?.openTime ?? null;
   }, [candles, interval]);
 
   if (!hasData) {

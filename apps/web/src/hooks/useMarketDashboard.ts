@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Candle,
+  CandlesPage,
   Interval,
   StatusResponse,
   SummaryResponse,
@@ -14,15 +15,12 @@ import {
   subscribeToMarketEvents,
   type StreamState,
 } from '../lib/api';
-import { completenessPercentage, type MarketSymbol } from '../lib/market';
+import { completenessPercentage, mergeCandles, type MarketSymbol } from '../lib/market';
 
 type RequestState = 'loading' | 'ready' | 'error';
 
-function mergeOneMinuteCandle(candles: Candle[], incoming: Candle): Candle[] {
-  const next = candles.filter((candle) => candle.openTime !== incoming.openTime);
-  next.push(incoming);
-  return next.sort((left, right) => left.openTime - right.openTime).slice(-360);
-}
+const SAFETY_REFRESH_MS = 5 * 60_000;
+const EMPTY_PAGE: CandlesPage = { nextBefore: null, hasMore: false };
 
 function mergeStatus(statuses: SymbolStatus[], incoming: SymbolStatus): SymbolStatus[] {
   const next = statuses.filter((status) => status.symbol !== incoming.symbol);
@@ -43,6 +41,8 @@ export function useMarketDashboard() {
   const [symbol, setSymbol] = useState<MarketSymbol>('');
   const [interval, setInterval] = useState<Interval>('1m');
   const [candles, setCandles] = useState<Candle[]>([]);
+  const [page, setPage] = useState<CandlesPage>(EMPTY_PAGE);
+  const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [statuses, setStatuses] = useState<StatusResponse['symbols']>([]);
   const [requestState, setRequestState] = useState<RequestState>('loading');
@@ -50,7 +50,7 @@ export function useMarketDashboard() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectionRef = useRef({ symbol, interval });
-  const aggregateRefreshTimer = useRef<number | null>(null);
+  const loadingPreviousRef = useRef(false);
 
   useEffect(() => {
     selectionRef.current = { symbol, interval };
@@ -86,11 +86,12 @@ export function useMarketDashboard() {
 
       try {
         const [candlesResponse, summaryResponse] = await Promise.all([
-          getCandles(symbol, interval, signal),
+          getCandles(symbol, interval, { signal }),
           requestSummary(symbol, signal),
         ]);
 
         setCandles(candlesResponse.candles);
+        setPage(candlesResponse.page);
         setSummary(summaryResponse);
         setLastUpdatedAt(Date.now());
         setRequestState('ready');
@@ -113,6 +114,9 @@ export function useMarketDashboard() {
     if (!symbol) return;
     const controller = new AbortController();
     setCandles([]);
+    setPage(EMPTY_PAGE);
+    loadingPreviousRef.current = false;
+    setLoadingPrevious(false);
     setSummary(null);
     void loadMarket(controller.signal);
     return () => controller.abort();
@@ -132,20 +136,24 @@ export function useMarketDashboard() {
         );
 
         if (selection.interval === '1m') {
-          setCandles((current) => mergeOneMinuteCandle(current, event.candle));
-          return;
+          setCandles((current) => mergeCandles(current, [event.candle]));
         }
 
-        if (aggregateRefreshTimer.current !== null) return;
-        aggregateRefreshTimer.current = window.setTimeout(() => {
-          aggregateRefreshTimer.current = null;
-          const latest = selectionRef.current;
-          void getCandles(latest.symbol, latest.interval).then((response) => {
+        if (!event.candle.isClosed) return;
+
+        void requestSummary(selection.symbol).then((response) => {
+          if (selectionRef.current.symbol === selection.symbol) setSummary(response);
+        }).catch((refreshError: unknown) => {
+          setError(refreshError instanceof Error ? refreshError.message : '시장 요약을 갱신하지 못했습니다.');
+        });
+
+        if (selection.interval !== '1m') {
+          void getCandles(selection.symbol, selection.interval).then((response) => {
             if (
-              selectionRef.current.symbol === latest.symbol &&
-              selectionRef.current.interval === latest.interval
+              selectionRef.current.symbol === selection.symbol &&
+              selectionRef.current.interval === selection.interval
             ) {
-              setCandles(response.candles);
+              setCandles((current) => mergeCandles(current, response.candles));
             }
           }).catch((refreshError: unknown) => {
             setError(
@@ -154,27 +162,42 @@ export function useMarketDashboard() {
                 : '실시간 집계 봉을 갱신하지 못했습니다.',
             );
           });
-        }, 1_000);
+        }
       },
       onStatus: (event) => {
         setLastUpdatedAt(Date.now());
         setStatuses((current) => mergeStatus(current, event.status));
       },
       onStateChange: setStreamState,
+      onReconnect: () => {
+        const selection = selectionRef.current;
+        if (!selection.symbol) return;
+        void Promise.all([
+          getStatus().then((response) => setStatuses(response.symbols)),
+          requestSummary(selection.symbol).then((response) => {
+            if (selectionRef.current.symbol === selection.symbol) setSummary(response);
+          }),
+          getCandles(selection.symbol, selection.interval).then((response) => {
+            if (
+              selectionRef.current.symbol === selection.symbol &&
+              selectionRef.current.interval === selection.interval
+            ) {
+              setCandles((current) => mergeCandles(current, response.candles));
+            }
+          }),
+        ]).then(() => setLastUpdatedAt(Date.now())).catch((refreshError: unknown) => {
+          setError(refreshError instanceof Error ? refreshError.message : '재연결 후 데이터를 동기화하지 못했습니다.');
+        });
+      },
     });
 
-    return () => {
-      unsubscribe();
-      if (aggregateRefreshTimer.current !== null) {
-        window.clearTimeout(aggregateRefreshTimer.current);
-        aggregateRefreshTimer.current = null;
-      }
-    };
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
     if (!symbol) return;
     const refreshTimer = window.setInterval(() => {
+      const selection = selectionRef.current;
       void Promise.allSettled([
         getStatus().then((response) => {
           setStatuses(response.symbols);
@@ -182,13 +205,49 @@ export function useMarketDashboard() {
             setSymbol(response.symbols[0]?.symbol ?? '');
           }
         }),
-        requestSummary(symbol).then(setSummary),
-        getCandles(symbol, interval).then((response) => setCandles(response.candles)),
+        requestSummary(selection.symbol).then((response) => {
+          if (selectionRef.current.symbol === selection.symbol) setSummary(response);
+        }),
+        getCandles(selection.symbol, selection.interval).then((response) => {
+          if (
+            selectionRef.current.symbol === selection.symbol &&
+            selectionRef.current.interval === selection.interval
+          ) {
+            setCandles((current) => mergeCandles(current, response.candles));
+          }
+        }),
       ]).then(() => setLastUpdatedAt(Date.now()));
-    }, 30_000);
+    }, SAFETY_REFRESH_MS);
 
     return () => window.clearInterval(refreshTimer);
   }, [interval, symbol]);
+
+  const loadPrevious = useCallback(async () => {
+    if (!symbol || loadingPreviousRef.current || !page.hasMore || page.nextBefore == null) return;
+    const requestedSelection = { symbol, interval };
+    loadingPreviousRef.current = true;
+    setLoadingPrevious(true);
+    setError(null);
+
+    try {
+      const response = await getCandles(symbol, interval, { to: page.nextBefore });
+      if (
+        selectionRef.current.symbol !== requestedSelection.symbol ||
+        selectionRef.current.interval !== requestedSelection.interval
+      ) return;
+      setCandles((current) => mergeCandles(current, response.candles));
+      setPage(response.page);
+      setLastUpdatedAt(Date.now());
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '이전 데이터를 불러오지 못했습니다.');
+    } finally {
+      loadingPreviousRef.current = false;
+      if (
+        selectionRef.current.symbol === requestedSelection.symbol &&
+        selectionRef.current.interval === requestedSelection.interval
+      ) setLoadingPrevious(false);
+    }
+  }, [interval, page.hasMore, page.nextBefore, symbol]);
 
   const selectedStatus = statuses.find((status) => status.symbol === symbol);
   const completeness = useMemo(() => {
@@ -208,6 +267,9 @@ export function useMarketDashboard() {
     interval,
     setInterval,
     candles,
+    page,
+    loadingPrevious,
+    loadPrevious,
     summary,
     statuses,
     requestState,

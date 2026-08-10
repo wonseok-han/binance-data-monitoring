@@ -1,6 +1,6 @@
 import type { Candle } from '@binance-monitoring/shared';
 import { describe, expect, it } from 'vitest';
-import { toFinancialChartData } from './chartData';
+import { preserveVisibleRangeAfterPrepend, toFinancialChartData } from './chartData';
 
 function candle(openTime: number, open: string, close: string): Candle {
   return {
@@ -41,5 +41,14 @@ describe('toFinancialChartData', () => {
     expect(result.volumes).toHaveLength(2);
     expect(result.volumes[0]?.color).toContain('55, 201, 155');
     expect(result.volumes[1]?.color).toContain('255, 107, 120');
+  });
+});
+
+describe('preserveVisibleRangeAfterPrepend', () => {
+  it('shifts the logical range by the number of older candles prepended', () => {
+    expect(preserveVisibleRangeAfterPrepend({ from: 4.5, to: 42.5 }, 120)).toEqual({
+      from: 124.5,
+      to: 162.5,
+    });
   });
 });

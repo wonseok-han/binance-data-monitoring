@@ -14,6 +14,16 @@ export interface VolumePoint {
   color: string;
 }
 
+export function preserveVisibleRangeAfterPrepend(
+  range: { from: number; to: number },
+  prependedCount: number,
+): { from: number; to: number } {
+  return {
+    from: range.from + prependedCount,
+    to: range.to + prependedCount,
+  };
+}
+
 export function toFinancialChartData(candles: Candle[]): {
   candlesticks: FinancialCandlePoint[];
   volumes: VolumePoint[];

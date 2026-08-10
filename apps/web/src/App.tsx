@@ -81,6 +81,9 @@ export function App() {
   const isLoading = dashboard.requestState === 'loading';
   const change = dashboard.summary?.changePercent1h ?? null;
   const selectedStatus = dashboard.statuses.find((status) => status.symbol === dashboard.symbol);
+  const backfillInProgress = ['pending', 'running', 'retrying'].includes(
+    selectedStatus?.historicalBackfill?.status ?? '',
+  );
 
   return (
     <div className="app-shell">
@@ -222,6 +225,9 @@ export function App() {
                 candles={dashboard.candles}
                 interval={dashboard.interval}
                 loading={isLoading}
+                canLoadPrevious={dashboard.page.hasMore}
+                loadingPrevious={dashboard.loadingPrevious}
+                onLoadPrevious={dashboard.loadPrevious}
               />
             </Suspense>
           </article>
@@ -284,7 +290,14 @@ export function App() {
             </div>
             <span className="muted-copy">{dashboard.symbol} · UTC 기준</span>
           </div>
-          <CandleTable candles={dashboard.candles} interval={dashboard.interval} />
+          <CandleTable
+            candles={dashboard.candles}
+            interval={dashboard.interval}
+            canLoadPrevious={dashboard.page.hasMore}
+            loadingPrevious={dashboard.loadingPrevious}
+            onLoadPrevious={dashboard.loadPrevious}
+            backfillInProgress={!dashboard.page.hasMore && backfillInProgress}
+          />
         </section>
       </main>
     </div>

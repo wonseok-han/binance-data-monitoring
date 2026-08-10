@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Candle } from '@binance-monitoring/shared';
 import { CandleTable } from './CandleTable';
 
@@ -36,5 +36,23 @@ describe('CandleTable', () => {
     expect(screen.getByText('1.25M USDT')).toBeTruthy();
     expect(screen.getByText('230')).toBeTruthy();
     expect(screen.getByText('확정')).toBeTruthy();
+  });
+
+  it('offers cursor loading and distinguishes a backfill-in-progress empty state', () => {
+    const onLoadPrevious = vi.fn();
+    const { rerender } = render(
+      <CandleTable
+        candles={[sampleCandle]}
+        interval="1d"
+        canLoadPrevious
+        onLoadPrevious={onLoadPrevious}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '이전 데이터 불러오기' }));
+    expect(onLoadPrevious).toHaveBeenCalledOnce();
+
+    rerender(<CandleTable candles={[]} interval="1d" backfillInProgress />);
+    expect(screen.getByText('과거 데이터 백필 중')).toBeTruthy();
   });
 });

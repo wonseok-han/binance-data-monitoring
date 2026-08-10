@@ -1,21 +1,42 @@
 import type { Candle, Interval } from '@binance-monitoring/shared';
 import { formatCompactUsdt, formatPrice, formatUtcDateTime, intervalLabel } from '../lib/market';
 
-export function CandleTable({ candles, interval }: { candles: Candle[]; interval: Interval }) {
+interface CandleTableProps {
+  candles: Candle[];
+  interval: Interval;
+  canLoadPrevious?: boolean;
+  loadingPrevious?: boolean;
+  onLoadPrevious?: () => void;
+  backfillInProgress?: boolean;
+}
+
+export function CandleTable({
+  candles,
+  interval,
+  canLoadPrevious = false,
+  loadingPrevious = false,
+  onLoadPrevious,
+  backfillInProgress = false,
+}: CandleTableProps) {
   const rows = candles.slice(-8).reverse();
 
   if (rows.length === 0) {
     return (
       <div className="table-empty">
-        <strong>표시할 데이터가 없습니다</strong>
-        <span>수집이 시작되면 최근 {intervalLabel(interval)}을 확인할 수 있습니다.</span>
+        <strong>{backfillInProgress ? '과거 데이터 백필 중' : '표시할 데이터가 없습니다'}</strong>
+        <span>
+          {backfillInProgress
+            ? `${intervalLabel(interval)} 데이터 범위가 확장되고 있습니다.`
+            : `수집이 시작되면 최근 ${intervalLabel(interval)}을 확인할 수 있습니다.`}
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="table-scroll">
-      <table>
+    <>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th scope="col">시각 (UTC)</th>
@@ -46,7 +67,23 @@ export function CandleTable({ candles, interval }: { candles: Candle[]; interval
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+      {(canLoadPrevious || backfillInProgress) && onLoadPrevious ? (
+        <div className="table-pagination">
+          <button
+            type="button"
+            disabled={!canLoadPrevious || loadingPrevious}
+            onClick={onLoadPrevious}
+          >
+            {loadingPrevious
+              ? '이전 데이터 불러오는 중'
+              : canLoadPrevious
+                ? '이전 데이터 불러오기'
+                : '과거 데이터 백필 중'}
+          </button>
+        </div>
+      ) : null}
+    </>
   );
 }

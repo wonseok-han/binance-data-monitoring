@@ -1,4 +1,4 @@
-import type { Completeness24h, ConnectionStatus, Interval } from '@binance-monitoring/shared';
+import type { Candle, Completeness24h, ConnectionStatus, Interval } from '@binance-monitoring/shared';
 
 export const MINUTE_MS = 60_000;
 
@@ -7,8 +7,14 @@ export type MarketSymbol = string;
 export const INTERVAL_OPTIONS: ReadonlyArray<{ value: Interval; label: string; limit: number }> = [
   { value: '1m', label: '1분', limit: 360 },
   { value: '6h', label: '6시간', limit: 120 },
-  { value: '1d', label: '일', limit: 30 },
+  { value: '1d', label: '일', limit: 120 },
 ];
+
+export function mergeCandles(current: Candle[], incoming: Candle[]): Candle[] {
+  const byOpenTime = new Map(current.map((candle) => [candle.openTime, candle]));
+  for (const candle of incoming) byOpenTime.set(candle.openTime, candle);
+  return [...byOpenTime.values()].sort((left, right) => left.openTime - right.openTime);
+}
 
 export function intervalLabel(interval: Interval): string {
   return `${INTERVAL_OPTIONS.find((option) => option.value === interval)?.label ?? interval}봉`;
