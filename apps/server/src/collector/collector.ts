@@ -1,10 +1,12 @@
 import type { DbHandle } from '../db/client.js';
 import { getLastClosedCandle, upsertCandles } from '../db/candles.js';
-import { upsertCollectorState } from '../db/collectorState.js';
+import { getCollectorState, upsertCollectorState } from '../db/collectorState.js';
+import type { ConnectionStatus } from '../db/collectorState.js';
 import type { FetchKlines, RawCandle } from './binanceRest.js';
 import { runBackfill } from './backfill.js';
 import { klineStreamUrl, parseKlineMessage } from './binanceWs.js';
 import type { WsConnection, WsFactory } from './binanceWs.js';
+import type { EventBus } from '../events/bus.js';
 
 export interface CollectorLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -25,6 +27,7 @@ export interface CollectorDeps {
   reconnectBaseDelayMs?: number;
   reconnectMaxDelayMs?: number;
   staleCheckIntervalMs?: number;
+  events?: EventBus;
 }
 
 export interface Collector {
@@ -57,6 +60,20 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
 
   function updateState(update: Parameters<typeof upsertCollectorState>[2]): void {
     upsertCollectorState(deps.db, symbol, update);
+
+    if (deps.events && update.connectionStatus !== undefined) {
+      const state = getCollectorState(deps.db, symbol);
+      if (state) {
+        deps.events.emitStatus(symbol, {
+          symbol,
+          connectionStatus: state.connectionStatus as ConnectionStatus,
+          lastEventAt: state.lastEventAt,
+          lastClosedOpenTime: state.lastClosedOpenTime,
+          delayMs: state.lastEventAt != null ? now() - state.lastEventAt : null,
+          lastError: state.lastError,
+        });
+      }
+    }
   }
 
   function clearStaleWatchdog(): void {
@@ -105,6 +122,7 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
       lastEventAt,
       ...(candle.isClosed ? { lastClosedOpenTime: candle.openTime } : {}),
     });
+    deps.events?.emitCandle(symbol, candle);
   }
 
   function flushBuffer(): void {

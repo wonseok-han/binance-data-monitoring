@@ -6,12 +6,14 @@ import { buildApp } from './http/app.js';
 import { createBinanceRestClient } from './collector/binanceRest.js';
 import { createWsFactory } from './collector/binanceWs.js';
 import { startCollector } from './collector/collector.js';
+import { createEventBus } from './events/bus.js';
 
 const config = loadConfig();
 const dbHandle = createDb(config.DATABASE_URL);
 runMigrations(dbHandle);
 
-const app = buildApp({ db: dbHandle, config });
+const events = createEventBus();
+const app = buildApp({ db: dbHandle, config, events });
 
 const restClient = createBinanceRestClient({ baseUrl: config.BINANCE_REST_URL });
 const wsFactory = createWsFactory();
@@ -24,6 +26,7 @@ config.symbols.forEach((symbol) => {
     wsBaseUrl: config.BINANCE_WS_URL,
     backfillHours: config.BACKFILL_HOURS,
     staleAfterSeconds: config.STALE_AFTER_SECONDS,
+    events,
     logger: {
       info: (msg, meta) => app.log.info(meta ?? {}, msg),
       error: (msg, meta) => app.log.error(meta ?? {}, msg),
