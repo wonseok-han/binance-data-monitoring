@@ -1,6 +1,66 @@
-const symbols = ['BTCUSDT', 'ETHUSDT'] as const;
+import type { ConnectionStatus, SymbolStatus } from '@binance-monitoring/shared';
+import type { CSSProperties } from 'react';
+import { lazy, Suspense } from 'react';
+import { CandleTable } from './components/CandleTable';
+import { useMarketDashboard } from './hooks/useMarketDashboard';
+import {
+  formatCompactUsdt,
+  formatLag,
+  formatPercent,
+  formatPrice,
+  formatUtcDateTime,
+  formatUtcTime,
+  RANGE_OPTIONS,
+  statusLabel,
+  SYMBOLS,
+} from './lib/market';
+
+const MarketCharts = lazy(() =>
+  import('./components/MarketCharts').then((module) => ({ default: module.MarketCharts })),
+);
+
+const streamLabel = {
+  connecting: '실시간 연결 중',
+  live: '실시간 연결됨',
+  reconnecting: '스트림 재연결 중',
+} as const;
+
+function statusClass(status: ConnectionStatus): string {
+  return `connection-chip connection-chip--${status}`;
+}
+
+function CollectorCard({ status }: { status: SymbolStatus | undefined }) {
+  const symbol = status?.symbol ?? '—';
+  const connectionStatus = status?.connectionStatus ?? 'connecting';
+
+  return (
+    <article className="collector-card">
+      <div>
+        <span className="asset-symbol">{symbol === '—' ? symbol : symbol.slice(0, 3)}</span>
+        <small>{symbol}</small>
+      </div>
+      <span className={statusClass(connectionStatus)}>{statusLabel(connectionStatus)}</span>
+      <dl>
+        <div>
+          <dt>데이터 지연</dt>
+          <dd>{formatLag(status?.delayMs ?? null)}</dd>
+        </div>
+        <div>
+          <dt>마지막 확정 봉</dt>
+          <dd>{formatUtcTime(status?.lastClosedOpenTime ?? null)}</dd>
+        </div>
+      </dl>
+      {status?.lastError ? <p className="collector-error">{status.lastError}</p> : null}
+    </article>
+  );
+}
 
 export function App() {
+  const dashboard = useMarketDashboard();
+  const isLoading = dashboard.requestState === 'loading';
+  const change = dashboard.summary?.changePercent1h ?? null;
+  const selectedStatus = dashboard.statuses.find((status) => status.symbol === dashboard.symbol);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -14,10 +74,10 @@ export function App() {
           </span>
         </a>
 
-        <div className="global-status" role="status">
-          <span className="status-dot status-dot--pending" aria-hidden="true" />
-          <span>데이터 연결 준비 중</span>
-          <time>마지막 갱신 —</time>
+        <div className="global-status" role="status" aria-live="polite">
+          <span className={`status-dot status-dot--${dashboard.streamState}`} aria-hidden="true" />
+          <span>{streamLabel[dashboard.streamState]}</span>
+          <time>마지막 갱신 {formatUtcTime(dashboard.lastUpdatedAt)} UTC</time>
         </div>
       </header>
 
@@ -32,11 +92,17 @@ export function App() {
           </div>
 
           <div className="symbol-switcher" aria-label="조회 종목">
-            {symbols.map((symbol, index) => (
+            {SYMBOLS.map((symbol) => (
               <button
-                className={index === 0 ? 'symbol-button symbol-button--active' : 'symbol-button'}
+                aria-pressed={dashboard.symbol === symbol}
+                className={
+                  dashboard.symbol === symbol
+                    ? 'symbol-button symbol-button--active'
+                    : 'symbol-button'
+                }
                 key={symbol}
                 type="button"
+                onClick={() => dashboard.setSymbol(symbol)}
               >
                 <span>{symbol.slice(0, 3)}</span>
                 <small>/ USDT</small>
@@ -45,23 +111,57 @@ export function App() {
           </div>
         </section>
 
+        {dashboard.error ? (
+          <div className="error-banner" role="alert">
+            <div>
+              <strong>데이터를 불러오지 못했습니다</strong>
+              <span>{dashboard.error}</span>
+            </div>
+            <button type="button" onClick={dashboard.refresh}>
+              다시 시도
+            </button>
+          </div>
+        ) : null}
+
         <section className="market-strip" aria-label="시장 요약">
           <article className="price-card panel">
             <div className="card-label-row">
-              <span className="card-label">BTC / USDT</span>
+              <span className="card-label">{dashboard.symbol.replace('USDT', ' / USDT')}</span>
               <span className="micro-badge">1분봉</span>
             </div>
-            <div className="price-placeholder">—</div>
-            <p className="muted-copy">첫 번째 시세를 기다리고 있습니다.</p>
+            <div className="price-value">
+              {formatPrice(dashboard.summary?.currentPrice)}
+              <small>USDT</small>
+            </div>
+            <p className="muted-copy">
+              {dashboard.summary
+                ? `${formatUtcTime(dashboard.summary.asOf)} UTC 기준`
+                : '첫 번째 시세를 기다리고 있습니다.'}
+            </p>
           </article>
 
-          {['1시간 등락률', '1시간 거래대금', '24시간 완전성'].map((label) => (
-            <article className="metric-card panel" key={label}>
-              <span className="card-label">{label}</span>
-              <strong>—</strong>
-              <small>데이터 준비 중</small>
-            </article>
-          ))}
+          <article className="metric-card panel">
+            <span className="card-label">1시간 등락률</span>
+            <strong className={change == null ? '' : change >= 0 ? 'value-positive' : 'value-negative'}>
+              {formatPercent(change)}
+            </strong>
+            <small>{dashboard.summary?.change1h ? `${formatPrice(dashboard.summary.change1h)} USDT` : '데이터 준비 중'}</small>
+          </article>
+
+          <article className="metric-card panel">
+            <span className="card-label">1시간 거래대금</span>
+            <strong>{formatCompactUsdt(dashboard.summary?.quoteVolume1h)}</strong>
+            <small>USDT 기준 누적 거래량</small>
+          </article>
+
+          <article className="metric-card panel">
+            <span className="card-label">{dashboard.rangeHours}시간 완전성</span>
+            <strong>{dashboard.completeness.percentage.toFixed(2)}%</strong>
+            <small>
+              {dashboard.completeness.actual.toLocaleString()} /{' '}
+              {dashboard.completeness.expected.toLocaleString()}개 확정 봉
+            </small>
+          </article>
         </section>
 
         <section className="workspace-grid">
@@ -72,21 +172,32 @@ export function App() {
                 <h2 id="price-chart-title">가격 및 거래량</h2>
               </div>
               <div className="range-switcher" aria-label="조회 기간">
-                <button type="button">1H</button>
-                <button type="button">6H</button>
-                <button className="range-button--active" type="button">
-                  24H
-                </button>
+                {RANGE_OPTIONS.map((range) => (
+                  <button
+                    aria-pressed={dashboard.rangeHours === range}
+                    className={dashboard.rangeHours === range ? 'range-button--active' : ''}
+                    key={range}
+                    type="button"
+                    onClick={() => dashboard.setRangeHours(range)}
+                  >
+                    {range}H
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="chart-empty">
-              <div className="chart-grid" aria-hidden="true" />
-              <span className="empty-icon" aria-hidden="true">
-                ↗
-              </span>
-              <strong>차트 데이터를 불러오는 중입니다</strong>
-              <small>수집된 1분봉이 여기에 실시간으로 표시됩니다.</small>
-            </div>
+            <Suspense
+              fallback={
+                <div className="chart-empty" role="status">
+                  <strong>차트 모듈을 준비하고 있습니다</strong>
+                </div>
+              }
+            >
+              <MarketCharts
+                candles={dashboard.candles}
+                loading={isLoading}
+                rangeHours={dashboard.rangeHours}
+              />
+            </Suspense>
           </article>
 
           <aside className="operations-panel panel" aria-labelledby="pipeline-title">
@@ -99,35 +210,32 @@ export function App() {
             </div>
 
             <div className="collector-list">
-              {symbols.map((symbol) => (
-                <article className="collector-card" key={symbol}>
-                  <div>
-                    <span className="asset-symbol">{symbol.slice(0, 3)}</span>
-                    <small>{symbol}</small>
-                  </div>
-                  <span className="connection-chip connection-chip--pending">연결 중</span>
-                  <dl>
-                    <div>
-                      <dt>데이터 지연</dt>
-                      <dd>—</dd>
-                    </div>
-                    <div>
-                      <dt>마지막 확정 봉</dt>
-                      <dd>—</dd>
-                    </div>
-                  </dl>
-                </article>
+              {SYMBOLS.map((symbol) => (
+                <CollectorCard
+                  key={symbol}
+                  status={dashboard.statuses.find((status) => status.symbol === symbol)}
+                />
               ))}
             </div>
 
             <div className="integrity-summary">
-              <div className="integrity-ring" aria-hidden="true">
-                <span>—</span>
+              <div
+                className="integrity-ring"
+                style={{ '--integrity': `${dashboard.completeness.percentage * 3.6}deg` } as CSSProperties}
+                aria-hidden="true"
+              >
+                <span>{Math.round(dashboard.completeness.percentage)}%</span>
               </div>
               <div>
-                <span className="card-label">24시간 데이터 완전성</span>
-                <strong>확정 봉 분석 대기 중</strong>
-                <small>누락 구간 —</small>
+                <span className="card-label">{dashboard.rangeHours}시간 데이터 완전성</span>
+                <strong>
+                  {dashboard.completeness.missing === 0
+                    ? '누락 없이 수집 중'
+                    : `${dashboard.completeness.missing}개 봉 누락`}
+                </strong>
+                <small>
+                  마지막 확정 {formatUtcDateTime(selectedStatus?.lastClosedOpenTime ?? null)} UTC
+                </small>
               </div>
             </div>
           </aside>
@@ -137,14 +245,11 @@ export function App() {
           <div className="panel-header">
             <div>
               <p className="eyebrow">RECENT RECORDS</p>
-              <h2 id="candles-title">최근 확정 봉</h2>
+              <h2 id="candles-title">최근 1분봉</h2>
             </div>
-            <span className="muted-copy">UTC 기준</span>
+            <span className="muted-copy">{dashboard.symbol} · UTC 기준</span>
           </div>
-          <div className="table-empty">
-            <strong>표시할 데이터가 없습니다</strong>
-            <span>수집이 시작되면 최근 1분봉을 확인할 수 있습니다.</span>
-          </div>
+          <CandleTable candles={dashboard.candles} />
         </section>
       </main>
     </div>
