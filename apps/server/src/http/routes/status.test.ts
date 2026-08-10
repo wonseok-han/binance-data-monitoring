@@ -10,6 +10,7 @@ import { createEventBus } from '../../events/bus.js';
 import { lastCompletedOpenTime } from '../../collector/backfill.js';
 import { MINUTE_MS } from '../../config/constants.js';
 import { createBackfillJob } from '../../db/backfillJobs.js';
+import { createSseRegistry } from '../sseRegistry.js';
 import { buildApp } from '../app.js';
 
 describe('GET /api/status', () => {
@@ -18,7 +19,7 @@ describe('GET /api/status', () => {
 
   beforeEach(() => {
     dbHandle = createTestDb();
-    app = buildApp({ db: dbHandle, config: loadConfig({}), events: createEventBus() });
+    app = buildApp({ db: dbHandle, config: loadConfig({}), events: createEventBus(), sse: createSseRegistry() });
   });
 
   afterEach(async () => {

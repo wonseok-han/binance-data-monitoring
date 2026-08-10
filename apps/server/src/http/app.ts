@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import type { DbHandle } from '../db/client.js';
 import type { AppConfig } from '../config/env.js';
 import type { EventBus } from '../events/bus.js';
+import type { SseRegistry } from './sseRegistry.js';
 import { ApiError, sendApiError } from './errors.js';
 import { registerCandlesRoute } from './routes/candles.js';
 import { registerStatusRoute } from './routes/status.js';
@@ -13,6 +14,7 @@ export interface AppDeps {
   db: DbHandle;
   config: AppConfig;
   events: EventBus;
+  sse: SseRegistry;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {

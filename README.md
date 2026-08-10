@@ -69,7 +69,7 @@ pnpm dev
 4. 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태는 `backfill_jobs`에 저장되어 재시작해도 이어서 처리된다.
 5. 연결이 끊기면 지수 백오프로 재연결하고, 재연결 시마다 같은 절차로 갭을 채운다.
 
-`pnpm dev`는 `SIGINT`(Ctrl+C)를 받으면 각 종목의 수집기, 백그라운드 백필 worker(진행 중인 페이지까지 마무리), 정리 작업과 REST 서버를 순서대로 정리한 뒤 종료한다(graceful shutdown).
+`pnpm dev`는 `SIGINT`(Ctrl+C)를 받으면 각 종목의 수집기, 백그라운드 백필 worker(진행 중인 페이지까지 마무리)와 정리 작업을 멈춘 뒤, 활성 `/api/events` SSE 연결을 모두 명시적으로 끊고(그렇지 않으면 열려 있는 연결 때문에 HTTP drain이 끝나지 않는다) REST 서버와 DB를 순서대로 정리한 뒤 종료한다(graceful shutdown).
 
 ## 대시보드 지표
 
@@ -181,8 +181,8 @@ CLAUDE.md                 # Claude Code용 진입 문서
 - REST 재시도/`Retry-After` 처리 (`apps/server/src/collector/binanceRest.test.ts`)
 - WebSocket 버퍼링→백필→flush→live 전환, 미확정→확정 봉 갱신, 재연결 gap-fill, stale 감지, onFirstLive 1회 호출, 확정봉 status SSE (`apps/server/src/collector/collector.test.ts`)
 - 장기 백필 worker의 페이지네이션, 영구/일시적 오류 분기, 지수 백오프 재시도, 재시도 중 graceful stop, 재시작 후 진행·재시도 상태 재개 (`apps/server/src/backfill/historicalWorker.test.ts`)
-- API 쿼리 검증, candles cursor 페이지네이션(`page.nextBefore`/`hasMore`), SSE 스트림 (`apps/server/src/http/**/*.test.ts`)
-- graceful shutdown 순서와 비동기 stop() 대기 (`apps/server/src/shutdown.test.ts`)
+- API 쿼리 검증, candles cursor 페이지네이션(`page.nextBefore`/`hasMore`), SSE 스트림과 실제 서버·연결로 검증하는 SSE 활성 상태의 graceful shutdown(hang 없이 스트림 종료) (`apps/server/src/http/**/*.test.ts`)
+- graceful shutdown 순서(SSE 클라이언트 종료 → HTTP drain → DB 종료)와 비동기 stop() 대기 (`apps/server/src/shutdown.test.ts`)
 - 이벤트 중심 동기화, 동일 URL 요청 공유, SSE 재연결 snapshot, cursor 병합과 차트 위치 보존 (`apps/web/src/**/*.test.ts(x)`)
 - 백필 진행률·coverage·재시도 상태, 금융 차트와 최근 봉 테이블의 접근 가능한 상태 표시 (`apps/web/src/**/*.test.ts(x)`)
 

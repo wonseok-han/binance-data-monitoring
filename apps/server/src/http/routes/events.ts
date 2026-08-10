@@ -12,6 +12,7 @@ export function registerEventsRoute(app: FastifyInstance, deps: AppDeps): void {
     });
     reply.raw.write('\n');
 
+    const removeClient = deps.sse.add(reply.raw);
     const offCandle = deps.events.onCandle((symbol, candle) => {
       reply.raw.write(`event: candle\ndata: ${JSON.stringify({ symbol, candle })}\n\n`);
     });
@@ -27,6 +28,7 @@ export function registerEventsRoute(app: FastifyInstance, deps: AppDeps): void {
       clearInterval(heartbeat);
       offCandle();
       offStatus();
+      removeClient();
     });
   });
 }

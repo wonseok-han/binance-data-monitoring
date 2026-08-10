@@ -9,6 +9,7 @@ import { startCollector } from './collector/collector.js';
 import { startHistoricalBackfillWorker } from './backfill/historicalWorker.js';
 import type { HistoricalBackfillWorker } from './backfill/historicalWorker.js';
 import { createEventBus } from './events/bus.js';
+import { createSseRegistry } from './http/sseRegistry.js';
 import { startRetentionCleanup } from './retention/cleanup.js';
 import { buildSymbolStatus } from './status/status.js';
 import { createShutdownHandler } from './shutdown.js';
@@ -18,7 +19,8 @@ const dbHandle = createDb(config.DATABASE_URL);
 runMigrations(dbHandle);
 
 const events = createEventBus();
-const app = buildApp({ db: dbHandle, config, events });
+const sse = createSseRegistry();
+const app = buildApp({ db: dbHandle, config, events, sse });
 
 const restClient = createBinanceRestClient({
   baseUrl: config.BINANCE_REST_URL,
@@ -83,6 +85,7 @@ const historicalWorkersController = {
 
 const shutdown = createShutdownHandler({
   collectors: [...collectors, retention, historicalWorkersController],
+  closeSseClients: () => sse.closeAll(),
   closeApp: () => app.close(),
   closeDb: () => dbHandle.sqlite.close(),
   logger: collectorLogger,

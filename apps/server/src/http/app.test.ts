@@ -4,6 +4,7 @@ import type { DbHandle } from '../db/client.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { loadConfig } from '../config/env.js';
 import { createEventBus } from '../events/bus.js';
+import { createSseRegistry } from './sseRegistry.js';
 import { buildApp } from './app.js';
 
 describe('health checks', () => {
@@ -12,7 +13,7 @@ describe('health checks', () => {
 
   beforeEach(() => {
     dbHandle = createTestDb();
-    app = buildApp({ db: dbHandle, config: loadConfig({}), events: createEventBus() });
+    app = buildApp({ db: dbHandle, config: loadConfig({}), events: createEventBus(), sse: createSseRegistry() });
   });
 
   afterEach(async () => {
@@ -23,7 +24,7 @@ describe('health checks', () => {
   it('GET /health/live returns ok even when the DB is unreachable', async () => {
     const brokenDb = createTestDb();
     brokenDb.sqlite.close();
-    const brokenApp = buildApp({ db: brokenDb, config: loadConfig({}), events: createEventBus() });
+    const brokenApp = buildApp({ db: brokenDb, config: loadConfig({}), events: createEventBus(), sse: createSseRegistry() });
 
     const response = await brokenApp.inject({ method: 'GET', url: '/health/live' });
 
