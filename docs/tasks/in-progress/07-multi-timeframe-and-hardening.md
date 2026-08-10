@@ -1,6 +1,6 @@
 # 07. 다중 봉 차트와 운영 안정성 개선
 
-- 상태: `todo`
+- 상태: `in-progress`
 - 백엔드 담당: Claude
 - UI 담당: Codex
 - 기준 설계: `docs/DESIGN.md`
