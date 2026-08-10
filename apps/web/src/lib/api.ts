@@ -6,9 +6,10 @@ import {
   StatusResponseSchema,
   SummaryResponseSchema,
   type CandleEvent,
+  type Interval,
   type StatusEvent,
 } from '@binance-monitoring/shared';
-import type { MarketSymbol, RangeHours } from './market';
+import { intervalLimit, type MarketSymbol } from './market';
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
@@ -56,14 +57,11 @@ export function getSummary(symbol: MarketSymbol, signal?: AbortSignal) {
 
 export function getCandles(
   symbol: MarketSymbol,
-  rangeHours: RangeHours,
+  interval: Interval,
   signal?: AbortSignal,
 ) {
-  const currentMinute = Math.floor(Date.now() / 60_000) * 60_000;
-  const from = currentMinute - rangeHours * 60 * 60_000;
-  const limit = rangeHours * 60 + 1;
   return request(
-    `/api/candles?symbol=${symbol}&from=${from}&limit=${limit}`,
+    `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${intervalLimit(interval)}`,
     CandlesResponseSchema,
     signal,
   );

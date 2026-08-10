@@ -1,4 +1,4 @@
-import type { Candle } from '@binance-monitoring/shared';
+import type { Candle, Interval } from '@binance-monitoring/shared';
 import {
   Area,
   AreaChart,
@@ -10,15 +10,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { formatChartTime, formatCompactUsdt, formatPrice, type RangeHours } from '../lib/market';
+import { formatChartTime, formatCompactUsdt, formatPrice } from '../lib/market';
 
 interface MarketChartsProps {
   candles: Candle[];
-  rangeHours: RangeHours;
+  interval: Interval;
   loading: boolean;
 }
 
-export function MarketCharts({ candles, rangeHours, loading }: MarketChartsProps) {
+export function MarketCharts({ candles, interval, loading }: MarketChartsProps) {
   const chartData = candles.map((candle) => ({
     time: candle.openTime,
     close: Number(candle.close),
@@ -60,7 +60,7 @@ export function MarketCharts({ candles, rangeHours, loading }: MarketChartsProps
               tickLine={false}
               tick={{ fill: '#66717f', fontSize: 9 }}
               minTickGap={50}
-              tickFormatter={(value: number) => formatChartTime(value, rangeHours)}
+              tickFormatter={(value: number) => formatChartTime(value, interval)}
             />
             <YAxis
               dataKey="close"
@@ -80,7 +80,7 @@ export function MarketCharts({ candles, rangeHours, loading }: MarketChartsProps
                 borderRadius: 8,
                 fontSize: 11,
               }}
-              labelFormatter={(value) => `${formatChartTime(Number(value), rangeHours)} UTC`}
+              labelFormatter={(value) => `${formatChartTime(Number(value), interval)} UTC`}
               formatter={(value) => [formatPrice(Number(value)), '종가']}
             />
             <Area
@@ -111,7 +111,7 @@ export function MarketCharts({ candles, rangeHours, loading }: MarketChartsProps
                 borderRadius: 8,
                 fontSize: 11,
               }}
-              labelFormatter={(value) => `${formatChartTime(Number(value), rangeHours)} UTC`}
+              labelFormatter={(value) => `${formatChartTime(Number(value), interval)} UTC`}
               formatter={(value) => [formatCompactUsdt(Number(value)), '거래대금']}
             />
             <Bar dataKey="volume" fill="#4e6073" radius={[2, 2, 0, 0]} isAnimationActive={false} />

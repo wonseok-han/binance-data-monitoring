@@ -1,14 +1,14 @@
-import type { Candle } from '@binance-monitoring/shared';
-import { formatCompactUsdt, formatPrice, formatUtcDateTime } from '../lib/market';
+import type { Candle, Interval } from '@binance-monitoring/shared';
+import { formatCompactUsdt, formatPrice, formatUtcDateTime, intervalLabel } from '../lib/market';
 
-export function CandleTable({ candles }: { candles: Candle[] }) {
+export function CandleTable({ candles, interval }: { candles: Candle[]; interval: Interval }) {
   const rows = candles.slice(-8).reverse();
 
   if (rows.length === 0) {
     return (
       <div className="table-empty">
         <strong>표시할 데이터가 없습니다</strong>
-        <span>수집이 시작되면 최근 1분봉을 확인할 수 있습니다.</span>
+        <span>수집이 시작되면 최근 {intervalLabel(interval)}을 확인할 수 있습니다.</span>
       </div>
     );
   }

@@ -1,41 +1,26 @@
-import type { Candle, ConnectionStatus } from '@binance-monitoring/shared';
+import type { Completeness24h, ConnectionStatus, Interval } from '@binance-monitoring/shared';
 
-export const SYMBOLS = ['BTCUSDT', 'ETHUSDT'] as const;
-export const RANGE_OPTIONS = [1, 6, 24] as const;
 export const MINUTE_MS = 60_000;
 
-export type MarketSymbol = (typeof SYMBOLS)[number];
-export type RangeHours = (typeof RANGE_OPTIONS)[number];
+export type MarketSymbol = string;
 
-export interface Completeness {
-  actual: number;
-  expected: number;
-  missing: number;
-  percentage: number;
+export const INTERVAL_OPTIONS: ReadonlyArray<{ value: Interval; label: string; limit: number }> = [
+  { value: '1m', label: '1분', limit: 360 },
+  { value: '6h', label: '6시간', limit: 120 },
+  { value: '1d', label: '일', limit: 30 },
+];
+
+export function intervalLabel(interval: Interval): string {
+  return `${INTERVAL_OPTIONS.find((option) => option.value === interval)?.label ?? interval}봉`;
 }
 
-export function calculateCompleteness(
-  candles: Candle[],
-  rangeHours: RangeHours,
-  now: number,
-): Completeness {
-  const currentMinute = Math.floor(now / MINUTE_MS) * MINUTE_MS;
-  const start = currentMinute - rangeHours * 60 * MINUTE_MS;
-  const end = currentMinute - MINUTE_MS;
-  const expected = rangeHours * 60;
-  const actual = new Set(
-    candles
-      .filter((candle) => candle.isClosed && candle.openTime >= start && candle.openTime <= end)
-      .map((candle) => candle.openTime),
-  ).size;
-  const missing = Math.max(0, expected - actual);
+export function intervalLimit(interval: Interval): number {
+  return INTERVAL_OPTIONS.find((option) => option.value === interval)?.limit ?? 500;
+}
 
-  return {
-    actual,
-    expected,
-    missing,
-    percentage: expected === 0 ? 0 : (actual / expected) * 100,
-  };
+export function completenessPercentage(completeness: Completeness24h | undefined): number {
+  if (!completeness || completeness.expected === 0) return 0;
+  return (completeness.confirmed / completeness.expected) * 100;
 }
 
 export function formatPrice(value: string | number | null | undefined): string {
@@ -90,11 +75,13 @@ export function formatUtcDateTime(value: number | null): string {
   }).format(value);
 }
 
-export function formatChartTime(value: number, rangeHours: RangeHours): string {
+export function formatChartTime(value: number, interval: Interval): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'UTC',
-    hour: '2-digit',
-    minute: rangeHours === 1 ? '2-digit' : undefined,
+    month: interval === '1d' ? '2-digit' : undefined,
+    day: interval === '1d' ? '2-digit' : undefined,
+    hour: interval === '1d' ? undefined : '2-digit',
+    minute: interval === '1m' ? '2-digit' : undefined,
     hour12: false,
   }).format(value);
 }

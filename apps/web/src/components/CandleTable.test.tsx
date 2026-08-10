@@ -24,12 +24,13 @@ const sampleCandle: Candle = {
 
 describe('CandleTable', () => {
   it('shows an explicit empty state', () => {
-    render(<CandleTable candles={[]} />);
+    render(<CandleTable candles={[]} interval="6h" />);
     expect(screen.getByText('표시할 데이터가 없습니다')).toBeTruthy();
+    expect(screen.getByText('수집이 시작되면 최근 6시간봉을 확인할 수 있습니다.')).toBeTruthy();
   });
 
   it('renders formatted candle values and status', () => {
-    render(<CandleTable candles={[sampleCandle]} />);
+    render(<CandleTable candles={[sampleCandle]} interval="1m" />);
 
     expect(screen.getByText('100,050.00')).toBeTruthy();
     expect(screen.getByText('1.25M USDT')).toBeTruthy();

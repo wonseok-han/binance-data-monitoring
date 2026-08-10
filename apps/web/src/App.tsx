@@ -10,9 +10,9 @@ import {
   formatPrice,
   formatUtcDateTime,
   formatUtcTime,
-  RANGE_OPTIONS,
+  INTERVAL_OPTIONS,
+  intervalLabel,
   statusLabel,
-  SYMBOLS,
 } from './lib/market';
 
 const MarketCharts = lazy(() =>
@@ -33,7 +33,7 @@ function CollectorCard({
   symbol,
   status,
 }: {
-  symbol: (typeof SYMBOLS)[number];
+  symbol: string;
   status: SymbolStatus | undefined;
 }) {
   const connectionStatus = status?.connectionStatus ?? 'connecting';
@@ -57,6 +57,18 @@ function CollectorCard({
         <div>
           <dt>마지막 확정 봉</dt>
           <dd>{formatUtcTime(status?.lastClosedOpenTime ?? null)}</dd>
+        </div>
+        <div>
+          <dt>24시간 완전성</dt>
+          <dd>
+            {status
+              ? `${status.completeness24h.confirmed.toLocaleString()} / ${status.completeness24h.expected.toLocaleString()}`
+              : '—'}
+          </dd>
+        </div>
+        <div>
+          <dt>최근 백필</dt>
+          <dd>{formatUtcTime(status?.lastBackfill?.finishedAt ?? null)}</dd>
         </div>
       </dl>
       {status?.lastError ? <p className="collector-error">{status.lastError}</p> : null}
@@ -101,7 +113,7 @@ export function App() {
           </div>
 
           <div className="symbol-switcher" aria-label="조회 종목">
-            {SYMBOLS.map((symbol) => (
+            {dashboard.symbols.map((symbol) => (
               <button
                 aria-pressed={dashboard.symbol === symbol}
                 className={
@@ -136,7 +148,7 @@ export function App() {
           <article className="price-card panel">
             <div className="card-label-row">
               <span className="card-label">{dashboard.symbol.replace('USDT', ' / USDT')}</span>
-              <span className="micro-badge">1분봉</span>
+              <span className="micro-badge">{intervalLabel(dashboard.interval)}</span>
             </div>
             <div className="price-value">
               {formatPrice(dashboard.summary?.currentPrice)}
@@ -164,15 +176,15 @@ export function App() {
           </article>
 
           <article className="metric-card panel">
-            <span className="card-label">{dashboard.rangeHours}시간 완전성</span>
+            <span className="card-label">24시간 완전성</span>
             <strong>
-              {dashboard.candles.length > 0
+              {dashboard.completeness.expected > 0
                 ? `${dashboard.completeness.percentage.toFixed(2)}%`
                 : '—'}
             </strong>
             <small>
-              {dashboard.candles.length > 0
-                ? `${dashboard.completeness.actual.toLocaleString()} / ${dashboard.completeness.expected.toLocaleString()}개 확정 봉`
+              {dashboard.completeness.expected > 0
+                ? `${dashboard.completeness.confirmed.toLocaleString()} / ${dashboard.completeness.expected.toLocaleString()}개 확정 1분봉`
                 : '데이터 준비 중'}
             </small>
           </article>
@@ -185,16 +197,16 @@ export function App() {
                 <p className="eyebrow">MARKET FLOW</p>
                 <h2 id="price-chart-title">가격 및 거래량</h2>
               </div>
-              <div className="range-switcher" aria-label="조회 기간">
-                {RANGE_OPTIONS.map((range) => (
+              <div className="range-switcher" aria-label="차트 봉 주기">
+                {INTERVAL_OPTIONS.map((option) => (
                   <button
-                    aria-pressed={dashboard.rangeHours === range}
-                    className={dashboard.rangeHours === range ? 'range-button--active' : ''}
-                    key={range}
+                    aria-pressed={dashboard.interval === option.value}
+                    className={dashboard.interval === option.value ? 'range-button--active' : ''}
+                    key={option.value}
                     type="button"
-                    onClick={() => dashboard.setRangeHours(range)}
+                    onClick={() => dashboard.setInterval(option.value)}
                   >
-                    {range}H
+                    {option.label}
                   </button>
                 ))}
               </div>
@@ -208,8 +220,8 @@ export function App() {
             >
               <MarketCharts
                 candles={dashboard.candles}
+                interval={dashboard.interval}
                 loading={isLoading}
-                rangeHours={dashboard.rangeHours}
               />
             </Suspense>
           </article>
@@ -224,7 +236,7 @@ export function App() {
             </div>
 
             <div className="collector-list">
-              {SYMBOLS.map((symbol) => (
+              {dashboard.symbols.map((symbol) => (
                 <CollectorCard
                   key={symbol}
                   symbol={symbol}
@@ -242,15 +254,15 @@ export function App() {
                 aria-hidden="true"
               >
                 <span>
-                  {dashboard.candles.length > 0
+                  {dashboard.completeness.expected > 0
                     ? `${Math.round(dashboard.completeness.percentage)}%`
                     : '—'}
                 </span>
               </div>
               <div>
-                <span className="card-label">{dashboard.rangeHours}시간 데이터 완전성</span>
+                <span className="card-label">최근 24시간 원본 완전성</span>
                 <strong>
-                  {dashboard.candles.length === 0
+                  {dashboard.completeness.expected === 0
                     ? '확정 봉 분석 대기 중'
                     : dashboard.completeness.missing === 0
                     ? '누락 없이 수집 중'
@@ -268,11 +280,11 @@ export function App() {
           <div className="panel-header">
             <div>
               <p className="eyebrow">RECENT RECORDS</p>
-              <h2 id="candles-title">최근 1분봉</h2>
+              <h2 id="candles-title">최근 {intervalLabel(dashboard.interval)}</h2>
             </div>
             <span className="muted-copy">{dashboard.symbol} · UTC 기준</span>
           </div>
-          <CandleTable candles={dashboard.candles} />
+          <CandleTable candles={dashboard.candles} interval={dashboard.interval} />
         </section>
       </main>
     </div>
