@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { loadConfig } from './config.js';
+import { loadConfig } from './config/env.js';
 import { createDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { buildApp } from './http/app.js';

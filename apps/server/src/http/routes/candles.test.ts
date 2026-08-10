@@ -4,12 +4,12 @@ import type { DbHandle } from '../../db/client.js';
 import { upsertCandles } from '../../db/candles.js';
 import { createTestDb } from '../../../test/helpers/db.js';
 import { makeCandleSeries } from '../../../test/fixtures/candles.js';
-import { loadConfig } from '../../config.js';
+import { loadConfig } from '../../config/env.js';
 import { createEventBus } from '../../events/bus.js';
+import { MINUTE_MS } from '../../config/constants.js';
 import { buildApp } from '../app.js';
 
 const SYMBOL = 'BTCUSDT';
-const MINUTE_MS = 60_000;
 
 describe('GET /api/candles', () => {
   let dbHandle: DbHandle;

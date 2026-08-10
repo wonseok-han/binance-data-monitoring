@@ -8,8 +8,8 @@ import { makeWsKlineEvent } from '../../test/fixtures/wsEvents.js';
 import type { RawCandle } from './binanceRest.js';
 import { lastCompletedOpenTime } from './backfill.js';
 import { startCollector } from './collector.js';
+import { MINUTE_MS } from '../config/constants.js';
 
-const MINUTE_MS = 60_000;
 const SYMBOL = 'BTCUSDT';
 const NOW = Date.UTC(2024, 2, 1, 0, 0, 37, 123);
 const WS_BASE_URL = 'wss://example.com';

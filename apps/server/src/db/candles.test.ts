@@ -3,10 +3,10 @@ import type { DbHandle } from './client.js';
 import { countCandles, deleteExpiredCandlesBatch, upsertCandles } from './candles.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { makeCandleSeries } from '../../test/fixtures/candles.js';
+import { MINUTE_MS } from '../config/constants.js';
 
 const SYMBOL = 'BTCUSDT';
 const OTHER_SYMBOL = 'ETHUSDT';
-const MINUTE_MS = 60_000;
 
 describe('deleteExpiredCandlesBatch', () => {
   let dbHandle: DbHandle;

@@ -1,8 +1,8 @@
 import type { DbHandle } from '../db/client.js';
 import { getLastClosedCandle, upsertCandles } from '../db/candles.js';
 import type { FetchKlines } from './binanceRest.js';
+import { MINUTE_MS } from '../config/constants.js';
 
-const MINUTE_MS = 60_000;
 const DEFAULT_PAGE_SIZE = 1000;
 
 export interface BackfillRange {

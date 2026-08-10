@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import type { DbHandle } from '../db/client.js';
-import type { AppConfig } from '../config.js';
+import type { AppConfig } from '../config/env.js';
 import type { EventBus } from '../events/bus.js';
 import { ApiError, sendApiError } from './errors.js';
 import { registerCandlesRoute } from './routes/candles.js';

@@ -4,9 +4,8 @@ import { countCandles, upsertCandles } from '../db/candles.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { createFixtureFetchKlines, makeCandleSeries } from '../../test/fixtures/candles.js';
 import { computeBackfillRange, lastCompletedOpenTime, runBackfill } from './backfill.js';
+import { HOUR_MS, MINUTE_MS } from '../config/constants.js';
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
 const SYMBOL = 'BTCUSDT';
 
 // 2024-03-01T00:00:37.123Z, 의도적으로 분 경계에 맞추지 않았다.

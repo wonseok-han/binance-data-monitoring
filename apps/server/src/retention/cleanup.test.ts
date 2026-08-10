@@ -3,11 +3,11 @@ import type { DbHandle } from '../db/client.js';
 import { countCandles, upsertCandles } from '../db/candles.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { makeCandleSeries } from '../../test/fixtures/candles.js';
+import { DAY_MS } from '../config/constants.js';
 import { startRetentionCleanup } from './cleanup.js';
 
 const SYMBOL_A = 'BTCUSDT';
 const SYMBOL_B = 'ETHUSDT';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 describe('startRetentionCleanup', () => {
   let dbHandle: DbHandle;

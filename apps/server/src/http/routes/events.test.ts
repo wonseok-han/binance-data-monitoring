@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbHandle } from '../../db/client.js';
 import { createTestDb } from '../../../test/helpers/db.js';
-import { loadConfig } from '../../config.js';
+import { loadConfig } from '../../config/env.js';
 import { createEventBus, type EventBus } from '../../events/bus.js';
 import { buildApp } from '../app.js';
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Candle } from '@binance-monitoring/shared';
 import { aggregateCandles } from './aggregate.js';
 import { INTERVAL_MS } from './interval.js';
+import { MINUTE_MS } from '../../config/constants.js';
 
 const SYMBOL = 'BTCUSDT';
-const MINUTE_MS = 60_000;
 
 function candle(openTime: number, overrides: Partial<Candle> = {}): Candle {
   return {

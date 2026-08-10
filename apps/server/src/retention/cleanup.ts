@@ -1,5 +1,6 @@
 import type { DbHandle } from '../db/client.js';
 import { deleteExpiredCandlesBatch } from '../db/candles.js';
+import { DAY_MS } from '../config/constants.js';
 
 export interface RetentionLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -8,7 +9,6 @@ export interface RetentionLogger {
 
 const noopLogger: RetentionLogger = { info: () => {}, error: () => {} };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_BATCH_SIZE = 1000;
 
 export interface RetentionDeps {

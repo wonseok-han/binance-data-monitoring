@@ -5,12 +5,11 @@ import { upsertCandles } from '../../db/candles.js';
 import { upsertCollectorState } from '../../db/collectorState.js';
 import { createTestDb } from '../../../test/helpers/db.js';
 import { makeCandleSeries } from '../../../test/fixtures/candles.js';
-import { loadConfig } from '../../config.js';
+import { loadConfig } from '../../config/env.js';
 import { createEventBus } from '../../events/bus.js';
 import { lastCompletedOpenTime } from '../../collector/backfill.js';
+import { MINUTE_MS } from '../../config/constants.js';
 import { buildApp } from '../app.js';
-
-const MINUTE_MS = 60_000;
 
 describe('GET /api/status', () => {
   let dbHandle: DbHandle;

@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import type { DbHandle } from './client.js';
 import { createDb } from './client.js';
-import { loadConfig } from '../config.js';
+import { loadConfig } from '../config/env.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = join(currentDir, '../../drizzle');
