@@ -1,23 +1,64 @@
 # Binance Data Monitoring
 
-BTCUSDT와 ETHUSDT의 Binance 1분봉을 수집·복구하고 실시간 운영 대시보드로 제공하는 TypeScript pnpm 모노레포다. 아키텍처와 API 계약의 기준 문서는 [`docs/DESIGN.md`](docs/DESIGN.md)이며, 작업 규칙은 [`AGENTS.md`](AGENTS.md)를 따른다.
+BTCUSDT와 ETHUSDT의 Binance 시세를 수집·복구하고 실시간 운영 대시보드로 제공하는 TypeScript pnpm 모노레포다. 아키텍처와 API 계약의 기준 문서는 [`docs/DESIGN.md`](docs/DESIGN.md)이며, 작업 규칙은 [`AGENTS.md`](AGENTS.md)를 따른다.
 
-## 요구 사항
+## 주요 기능 및 구현
 
-- Node.js 22 이상
-- pnpm 11 이상 (`corepack enable` 또는 `npm i -g pnpm`)
+- **실시간 수집과 복구**: Binance 1분봉 WebSocket을 먼저 연결해 이벤트를 버퍼링한 뒤 REST 백필을 수행한다. 최초 실행과 재시작 모두 같은 흐름을 사용하며 `(symbol, open_time)` upsert로 중복을 방지한다.
+- **안정적인 운영 상태 추적**: 재연결 지수 백오프, 누락 구간 복구, stale 감지, 최근 오류와 데이터 지연을 종목별로 기록한다.
+- **다중 봉 조회**: 저장된 1분봉을 원본으로 유지하고 조회 시 UTC 경계에 맞춰 6시간봉과 일봉으로 집계한다.
+- **REST·SSE 제공**: 캔들, 요약, 수집 상태와 헬스 체크 API를 제공하고, DB 반영이 끝난 이벤트만 SSE로 전달한다.
+- **운영 대시보드**: OHLC 캔들·거래량 차트, 최근 봉, 데이터 완전성, 연결 상태를 실시간으로 표시한다.
+- **데이터 관리**: SQLite와 Drizzle을 사용하며 설정된 보존 기간이 지난 1분봉을 주기적으로 정리한다.
 
-## 설치와 실행
+## 개발 환경
+
+| 구분 | 기술 |
+| --- | --- |
+| Runtime / Package manager | Node.js 22 이상, pnpm 11 이상 |
+| Language | TypeScript 6 |
+| Server | Fastify 5, Zod 4, ws |
+| Database | SQLite, better-sqlite3, Drizzle ORM |
+| Web | React 19, Vite 7, Lightweight Charts 5 |
+| Test / Quality | Vitest 4, Testing Library, ESLint |
+
+pnpm이 없다면 `corepack enable`로 활성화하거나 `npm install -g pnpm`으로 설치한다.
+
+## 설치 및 실행
+
+### 1. 의존성 설치
 
 ```bash
 pnpm install
-cp .env.example .env      # 필요하면 값 수정
-pnpm db:migrate           # SQLite 스키마 생성 (apps/server/data/market.db)
-pnpm dev                  # server와 web 개발 서버 동시 실행
+```
+
+### 2. 환경변수 설정
+
+```bash
+cp .env.example .env
+```
+
+기본값으로 바로 실행할 수 있다. 수집 종목, 최초 백필 기간 또는 포트를 바꾸려면 `.env`를 수정한다. 예를 들어 다음과 같이 설정할 수 있다.
+
+```dotenv
+PORT=3000
+SYMBOLS=BTCUSDT,ETHUSDT
+BACKFILL_DAYS=30
+RETENTION_DAYS=30
+```
+
+전체 설정과 기본값은 [환경변수](#환경변수)와 [`.env.example`](.env.example)을 참고한다. Binance 공개 시세 API를 사용하므로 API key는 필요 없다.
+
+### 3. 데이터베이스 준비 및 개발 서버 실행
+
+```bash
+pnpm db:migrate
+pnpm dev
 ```
 
 - 운영 대시보드: <http://127.0.0.1:5173>
 - API 서버: <http://127.0.0.1:3000>
+- SQLite 기본 경로: `apps/server/data/market.db`
 
 서버가 기동되면 다음 순서로 동작한다.
 
@@ -28,7 +69,7 @@ pnpm dev                  # server와 web 개발 서버 동시 실행
 
 `pnpm dev`는 `SIGINT`(Ctrl+C)를 받으면 각 종목의 수집기와 REST 서버를 정리한 뒤 종료한다(graceful shutdown).
 
-## 운영 대시보드
+## 대시보드 지표
 
 대시보드는 시장 분석보다 수집 파이프라인의 상태 확인을 우선한다.
 
@@ -82,8 +123,6 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | `LOG_LEVEL` | `info` | pino 로그 레벨 |
 | `VITE_API_BASE_URL` | 빈 값 | web을 분리 배포할 때 사용할 API base URL |
 
-Binance 공개 시세 API만 사용하므로 API key는 필요 없다.
-
 ## API
 
 전체 계약은 [`docs/DESIGN.md`](docs/DESIGN.md#7-api-계약)를 따른다. 오류 응답은 모두 `{ "error": { "code", "message" } }` 형태다.
@@ -105,11 +144,11 @@ Binance 공개 시세 API만 사용하므로 API key는 필요 없다.
 apps/
   server/                 # 수집기, SQLite 저장소, REST/SSE API (Claude 담당)
     src/collector/        # Binance REST/WebSocket 연동, 백필, 재연결
-    src/aggregation/       # 봉 주기 집계 (domain/application/infrastructure 경계)
-    src/db/                # Drizzle 스키마·마이그레이션·리포지토리
-    src/http/              # Fastify 라우트, 검증, 에러 포맷
-    src/events/             # SSE용 in-process pub/sub
-    drizzle/                # 생성된 SQL 마이그레이션
+    src/aggregation/      # 봉 주기 집계 (domain/application/infrastructure 경계)
+    src/db/               # Drizzle 스키마·마이그레이션·리포지토리
+    src/http/             # Fastify 라우트, 검증, 에러 포맷
+    src/events/           # SSE용 in-process pub/sub
+    drizzle/              # 생성된 SQL 마이그레이션
   web/                    # React 운영 대시보드, REST/SSE 클라이언트와 UI 테스트
 packages/
   shared/                 # API 응답 zod 스키마와 공용 타입

@@ -7,8 +7,9 @@ BTCUSDT와 ETHUSDT의 Binance 1분봉을 수집·복구하고 실시간 운영 �
 1. `docs/DESIGN.md` — 범위, 아키텍처, 데이터/API 계약, 완료 기준
 2. `docs/tasks/in-progress` 또는 `docs/tasks/todo` — 현재 변경 작업과 체크리스트
 3. `AGENTS.md` — 구현 규칙, 필수 명령, 테스트 우선순위
+4. `README.md` — 사용자를 위한 개발 환경, 실행 방법, 현재 구현 기능
 
-두 문서와 다른 구현을 제안해야 한다면 코드를 먼저 바꾸지 말고 이유와 trade-off를 짧게 설명한다.
+이 문서들과 다른 구현을 제안해야 한다면 코드를 먼저 바꾸지 말고 이유와 trade-off를 짧게 설명한다.
 
 ## Your Scope
 
@@ -25,8 +26,9 @@ BTCUSDT와 ETHUSDT의 Binance 1분봉을 수집·복구하고 실시간 운영 �
 4. 네트워크 경계는 fixture로, 시간 로직은 fake clock으로 테스트한다.
 5. 변경한 범위의 테스트와 전체 품질 명령을 실행한 뒤 로컬 커밋과 fast-forward를 완료한다.
 6. 백엔드 담당 범위가 끝날 때까지 task 체크리스트를 갱신하며 승인 없이 다음 기능 브랜치로 계속한다.
-7. Codex 작업이 남아 있으면 task를 `in-progress`에 유지하고, 전체 작업이 끝난 경우에만 `docs/DESIGN.md`를 갱신한 뒤 `done`으로 이동한다.
-8. 전체 작업이 끝나면 브랜치·커밋, 동작, 검증 결과, 남은 위험만 간결하게 보고한다.
+7. 구현된 변경이 실행 방법, 개발 환경, 환경변수, 주요 기능, API 또는 구조에 영향을 주면 `AGENTS.md`의 `README Contract`에 따라 README와 필요한 설정 예시를 함께 갱신한다.
+8. Codex 작업이 남아 있으면 task를 `in-progress`에 유지하고, 전체 작업이 끝난 경우에만 `docs/DESIGN.md`를 갱신한 뒤 `done`으로 이동한다.
+9. 전체 작업이 끝나면 브랜치·커밋, 동작, 검증 결과, 남은 위험만 간결하게 보고한다.
 
 ## Local Git Boundary
 
@@ -69,6 +71,7 @@ apps/server   collector + SQLite + REST/SSE
 apps/web      React dashboard
 packages/shared  runtime schemas + shared types
 docs/DESIGN.md   architecture source of truth
+README.md        setup, runbook, current features
 ```
 
 구조가 실제로 생성되기 전에는 이 지도를 구현 목표로 취급한다. 구조가 합의하에 바뀌면 이 문서와 설계문서를 함께 갱신한다.
