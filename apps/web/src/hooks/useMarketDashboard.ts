@@ -147,6 +147,12 @@ export function useMarketDashboard() {
             ) {
               setCandles(response.candles);
             }
+          }).catch((refreshError: unknown) => {
+            setError(
+              refreshError instanceof Error
+                ? refreshError.message
+                : '실시간 집계 봉을 갱신하지 못했습니다.',
+            );
           });
         }, 1_000);
       },
@@ -161,6 +167,7 @@ export function useMarketDashboard() {
       unsubscribe();
       if (aggregateRefreshTimer.current !== null) {
         window.clearTimeout(aggregateRefreshTimer.current);
+        aggregateRefreshTimer.current = null;
       }
     };
   }, []);

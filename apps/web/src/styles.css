@@ -332,6 +332,7 @@ h2 {
 .chart-panel,
 .operations-panel,
 .table-panel {
+  min-width: 0;
   padding: 22px;
 }
 
@@ -368,35 +369,54 @@ h2 {
   background: #0b0e12;
 }
 
-.chart-stack {
-  display: grid;
+.financial-chart {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
-  grid-template-rows: 300px 92px;
+  height: 410px;
   margin-top: 16px;
   border: 1px solid var(--line-soft);
   border-radius: 10px;
   background: #0b0e12;
 }
 
-.price-chart,
-.volume-chart {
+.chart-canvas {
+  width: 100%;
   min-width: 0;
+  height: 100%;
 }
 
-.volume-chart {
-  position: relative;
-  border-top: 1px solid var(--line-soft);
-}
-
-.volume-label {
+.chart-legend {
   position: absolute;
-  z-index: 1;
-  top: 8px;
+  z-index: 2;
+  top: 10px;
   left: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 8px;
   color: var(--faint);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.12em;
+  border: 1px solid rgba(36, 42, 50, 0.82);
+  border-radius: 6px;
+  background: rgba(11, 14, 18, 0.82);
+  backdrop-filter: blur(8px);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.chart-legend strong {
+  color: #c7cdd6;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-legend__volume {
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
 }
 
 .chart-grid {
@@ -775,6 +795,16 @@ tbody tr:hover {
   .table-panel {
     padding: 18px;
   }
+
+  .financial-chart {
+    height: 370px;
+  }
+
+  .chart-legend {
+    right: 48px;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+  }
 }
 
 @media (max-width: 460px) {
@@ -792,6 +822,16 @@ tbody tr:hover {
 
   .chart-empty {
     min-height: 300px;
+  }
+
+  .financial-chart {
+    height: 330px;
+  }
+
+  .chart-legend__volume {
+    width: 100%;
+    padding-left: 0;
+    border-left: 0;
   }
 }
 
