@@ -38,7 +38,7 @@
 1. 첫 커밋이 없으면 설계문서와 프로젝트 기본 설정을 로컬 `main`의 기준 커밋으로 만든다.
 2. 갱신된 로컬 `main`에서 기능 브랜치를 만든다: `feat/<번호>-<설명>`, `fix/<설명>`, `docs/<설명>`, `chore/<설명>`.
 3. 기능을 구현하고 필수 검증을 실행한다.
-4. 자기 작업 파일만 명시적으로 stage하고 Conventional Commits 형식으로 커밋한다. `git add .`와 `git add -A`를 사용하지 않는다.
+4. 자기 작업 파일만 명시적으로 stage하고 Conventional Commits 형식으로 커밋한다. `feat`, `fix`, `docs`, `chore` 같은 접두사는 유지하되 제목과 본문은 한국어로 작성한다. `git add .`와 `git add -A`를 사용하지 않는다.
 5. 로컬 `main`으로 전환해 `git merge --ff-only <branch>`로 반영한다. 완료 브랜치는 삭제하지 않는다.
 6. 다음 기능은 갱신된 로컬 `main`에서 새 브랜치로 시작한다.
 
