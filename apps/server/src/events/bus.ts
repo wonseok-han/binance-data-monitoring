@@ -1,18 +1,9 @@
 import { EventEmitter } from 'node:events';
 import type { RawCandle } from '../collector/binanceRest.js';
-import type { BackfillRunRecord, ConnectionStatus } from '../db/collectorState.js';
-import type { Completeness24h } from '../status/completeness.js';
+import type { SymbolStatusResult } from '../status/status.js';
 
-export interface StatusEventPayload {
-  symbol: string;
-  connectionStatus: ConnectionStatus;
-  lastEventAt: number | null;
-  lastClosedOpenTime: number | null;
-  delayMs: number | null;
-  lastError: string | null;
-  lastBackfill: BackfillRunRecord | null;
-  completeness24h: Completeness24h;
-}
+/** REST /api/status와 동일한 전체 상태 스냅샷. status/status.ts의 buildSymbolStatus가 만든다. */
+export type StatusEventPayload = SymbolStatusResult;
 
 export interface EventBus {
   emitCandle(symbol: string, candle: RawCandle): void;

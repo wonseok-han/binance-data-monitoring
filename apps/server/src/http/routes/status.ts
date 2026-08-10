@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { buildStatus } from '../status.js';
+import { buildStatus } from '../../status/status.js';
 import type { AppDeps } from '../app.js';
 
 export function registerStatusRoute(app: FastifyInstance, deps: AppDeps): void {

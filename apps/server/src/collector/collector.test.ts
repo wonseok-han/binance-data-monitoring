@@ -259,4 +259,72 @@ describe('startCollector', () => {
     await flushMicrotasks();
     expect(instances).toHaveLength(1);
   });
+
+  it('calls onFirstLive exactly once, even across reconnects', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    const { factory, instances } = createFakeWsFactory();
+    const fetchKlines = vi.fn().mockResolvedValue([]);
+    const onFirstLive = vi.fn();
+
+    const collector = startCollector(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      wsFactory: factory,
+      wsBaseUrl: WS_BASE_URL,
+      backfillHours: 1,
+      staleAfterSeconds: 10,
+      now: () => NOW,
+      onFirstLive,
+    });
+
+    instances[0]!.emit('open');
+    await flushMicrotasks();
+    expect(onFirstLive).toHaveBeenCalledTimes(1);
+
+    // disconnect and reconnect: onFirstLive must not fire again.
+    instances[0]!.close();
+    await vi.advanceTimersByTimeAsync(2000);
+    instances[1]!.emit('open');
+    await flushMicrotasks();
+
+    expect(onFirstLive).toHaveBeenCalledTimes(1);
+
+    collector.stop();
+  });
+
+  it('emits a status SSE snapshot when a candle is confirmed, even without a connectionStatus change', async () => {
+    const { factory, instances } = createFakeWsFactory();
+    const fetchKlines = vi.fn().mockResolvedValue([]);
+    const events = {
+      emitCandle: vi.fn(),
+      emitStatus: vi.fn(),
+      onCandle: vi.fn(() => () => {}),
+      onStatus: vi.fn(() => () => {}),
+    };
+
+    const collector = startCollector(SYMBOL, {
+      db: dbHandle.db,
+      fetchKlines,
+      wsFactory: factory,
+      wsBaseUrl: WS_BASE_URL,
+      backfillHours: 1,
+      staleAfterSeconds: 10,
+      now: () => NOW,
+      events,
+    });
+
+    instances[0]!.emit('open');
+    await flushMicrotasks();
+    events.emitStatus.mockClear(); // ignore the connecting/live transition snapshots
+
+    const openTime = lastCompletedOpenTime(NOW);
+    instances[0]!.emit('message', makeWsKlineEvent(SYMBOL, openTime, { x: false }));
+    expect(events.emitStatus).not.toHaveBeenCalled(); // in-progress candle: no connectionStatus change
+
+    instances[0]!.emit('message', makeWsKlineEvent(SYMBOL, openTime, { x: true }));
+    expect(events.emitStatus).toHaveBeenCalledTimes(1);
+    expect(events.emitStatus).toHaveBeenCalledWith(SYMBOL, expect.objectContaining({ lastClosedOpenTime: openTime }));
+
+    collector.stop();
+  });
 });

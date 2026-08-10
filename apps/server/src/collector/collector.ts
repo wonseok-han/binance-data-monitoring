@@ -1,18 +1,13 @@
 import type { DbHandle } from '../db/client.js';
 import { getLastClosedCandle, upsertCandles } from '../db/candles.js';
-import {
-  getCollectorState,
-  parseBackfillRecord,
-  serializeBackfillRecord,
-  upsertCollectorState,
-} from '../db/collectorState.js';
-import type { BackfillRunRecord, ConnectionStatus } from '../db/collectorState.js';
+import { serializeBackfillRecord, upsertCollectorState } from '../db/collectorState.js';
+import type { BackfillRunRecord } from '../db/collectorState.js';
 import type { FetchKlines, RawCandle } from './binanceRest.js';
 import { computeBackfillRange, runBackfill } from './backfill.js';
 import { klineStreamUrl, parseKlineMessage } from './binanceWs.js';
 import type { WsConnection, WsFactory } from './binanceWs.js';
 import type { EventBus } from '../events/bus.js';
-import { computeCompleteness24h } from '../status/completeness.js';
+import { buildSymbolStatus } from '../status/status.js';
 
 export interface CollectorLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -34,6 +29,8 @@ export interface CollectorDeps {
   reconnectMaxDelayMs?: number;
   staleCheckIntervalMs?: number;
   events?: EventBus;
+  /** 이 종목이 처음으로 실시간 모드에 도달했을 때 정확히 한 번 호출된다(재연결 시에는 다시 호출되지 않는다). */
+  onFirstLive?: () => void;
 }
 
 export interface Collector {
@@ -61,27 +58,18 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
   let buffer: RawCandle[] = [];
   let attempt = 0;
   let lastEventAt = now();
+  let reachedLiveBefore = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let staleTimer: ReturnType<typeof setInterval> | null = null;
 
+  function emitStatusSnapshot(): void {
+    if (!deps.events) return;
+    deps.events.emitStatus(symbol, buildSymbolStatus(deps.db, symbol, now()));
+  }
+
   function updateState(update: Parameters<typeof upsertCollectorState>[2]): void {
     upsertCollectorState(deps.db, symbol, update);
-
-    if (deps.events && update.connectionStatus !== undefined) {
-      const state = getCollectorState(deps.db, symbol);
-      if (state) {
-        deps.events.emitStatus(symbol, {
-          symbol,
-          connectionStatus: state.connectionStatus as ConnectionStatus,
-          lastEventAt: state.lastEventAt,
-          lastClosedOpenTime: state.lastClosedOpenTime,
-          delayMs: state.lastEventAt != null ? now() - state.lastEventAt : null,
-          lastError: state.lastError,
-          lastBackfill: parseBackfillRecord(state.lastBackfillJson),
-          completeness24h: computeCompleteness24h(deps.db, symbol, now()),
-        });
-      }
-    }
+    if (update.connectionStatus !== undefined) emitStatusSnapshot();
   }
 
   function clearStaleWatchdog(): void {
@@ -131,6 +119,8 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
       ...(candle.isClosed ? { lastClosedOpenTime: candle.openTime } : {}),
     });
     deps.events?.emitCandle(symbol, candle);
+    // 확정 봉은 completeness24h/coverage가 바뀌므로 connectionStatus 변경이 없어도 상태 스냅샷을 발행한다.
+    if (candle.isClosed) emitStatusSnapshot();
   }
 
   function flushBuffer(): number {
@@ -211,6 +201,11 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
         });
         startStaleWatchdog();
         logger.info('collector live', { symbol, backfilledCount, flushedCount });
+
+        if (!reachedLiveBefore) {
+          reachedLiveBefore = true;
+          deps.onFirstLive?.();
+        }
       })
       .catch((error: unknown) => {
         logger.error('backfill failed', { symbol, error: String(error) });

@@ -9,6 +9,7 @@ import { loadConfig } from '../../config/env.js';
 import { createEventBus } from '../../events/bus.js';
 import { lastCompletedOpenTime } from '../../collector/backfill.js';
 import { MINUTE_MS } from '../../config/constants.js';
+import { createBackfillJob } from '../../db/backfillJobs.js';
 import { buildApp } from '../app.js';
 
 describe('GET /api/status', () => {
@@ -40,6 +41,8 @@ describe('GET /api/status', () => {
       lastError: null,
       lastBackfill: null,
       completeness24h: { expected: 1440, confirmed: 0, missing: 1440 },
+      historicalBackfill: null,
+      coverage: { from: null, to: null },
     });
   });
 
@@ -85,5 +88,41 @@ describe('GET /api/status', () => {
     const btc = body.symbols.find((entry: { symbol: string }) => entry.symbol === 'BTCUSDT');
 
     expect(btc.completeness24h).toEqual({ expected: 1440, confirmed: 1400, missing: 40 });
+  });
+
+  it('surfaces historicalBackfill progress from the latest backfill_jobs row', async () => {
+    createBackfillJob(dbHandle.db, {
+      symbol: 'BTCUSDT',
+      fromTime: 0,
+      toTime: 999,
+      cursor: 400,
+      totalCount: 1000,
+      now: Date.now(),
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/api/status' });
+    const body = response.json();
+    const btc = body.symbols.find((entry: { symbol: string }) => entry.symbol === 'BTCUSDT');
+
+    expect(btc.historicalBackfill).toMatchObject({
+      status: 'pending',
+      processed: 0,
+      total: 1000,
+      progressPercent: 0,
+      from: 0,
+      to: 999,
+      lastError: null,
+    });
+  });
+
+  it('reports coverage as the earliest/latest stored candle for the symbol', async () => {
+    const start = 10 * MINUTE_MS;
+    upsertCandles(dbHandle.db, makeCandleSeries('BTCUSDT', start, 5));
+
+    const response = await app.inject({ method: 'GET', url: '/api/status' });
+    const body = response.json();
+    const btc = body.symbols.find((entry: { symbol: string }) => entry.symbol === 'BTCUSDT');
+
+    expect(btc.coverage).toEqual({ from: start, to: start + 4 * MINUTE_MS });
   });
 });

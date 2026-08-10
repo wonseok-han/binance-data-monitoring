@@ -61,6 +61,26 @@ export const Completeness24hSchema = z.object({
 });
 export type Completeness24h = z.infer<typeof Completeness24hSchema>;
 
+export const BackfillJobStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+export type BackfillJobStatus = z.infer<typeof BackfillJobStatusSchema>;
+
+export const HistoricalBackfillSchema = z.object({
+  status: BackfillJobStatusSchema,
+  processed: z.number(),
+  total: z.number(),
+  progressPercent: z.number(),
+  from: z.number(),
+  to: z.number(),
+  lastError: z.string().nullable(),
+});
+export type HistoricalBackfill = z.infer<typeof HistoricalBackfillSchema>;
+
+export const CoverageRangeSchema = z.object({
+  from: z.number().nullable(),
+  to: z.number().nullable(),
+});
+export type CoverageRange = z.infer<typeof CoverageRangeSchema>;
+
 export const SymbolStatusSchema = z.object({
   symbol: z.string(),
   connectionStatus: ConnectionStatusSchema,
@@ -70,6 +90,8 @@ export const SymbolStatusSchema = z.object({
   lastError: z.string().nullable(),
   lastBackfill: BackfillRunSchema.nullable(),
   completeness24h: Completeness24hSchema,
+  historicalBackfill: HistoricalBackfillSchema.nullable(),
+  coverage: CoverageRangeSchema,
 });
 export type SymbolStatus = z.infer<typeof SymbolStatusSchema>;
 

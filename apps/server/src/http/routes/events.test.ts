@@ -70,6 +70,8 @@ describe('GET /api/events (SSE)', () => {
       lastError: null,
       lastBackfill: null,
       completeness24h: { expected: 1440, confirmed: 0, missing: 1440 },
+      historicalBackfill: null,
+      coverage: { from: null, to: null },
     });
 
     await readUntil('event: status');
