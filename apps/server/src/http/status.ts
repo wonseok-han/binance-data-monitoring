@@ -1,6 +1,8 @@
 import type { DbHandle } from '../db/client.js';
 import { getCollectorState, parseBackfillRecord } from '../db/collectorState.js';
 import type { BackfillRunRecord, ConnectionStatus } from '../db/collectorState.js';
+import { computeCompleteness24h } from '../status/completeness.js';
+import type { Completeness24h } from '../status/completeness.js';
 
 export interface SymbolStatusResult {
   symbol: string;
@@ -10,6 +12,7 @@ export interface SymbolStatusResult {
   delayMs: number | null;
   lastError: string | null;
   lastBackfill: BackfillRunRecord | null;
+  completeness24h: Completeness24h;
 }
 
 export function buildStatus(db: DbHandle['db'], symbols: string[], now: number): SymbolStatusResult[] {
@@ -24,6 +27,7 @@ export function buildStatus(db: DbHandle['db'], symbols: string[], now: number):
       delayMs: state?.lastEventAt != null ? now - state.lastEventAt : null,
       lastError: state?.lastError ?? null,
       lastBackfill: parseBackfillRecord(state?.lastBackfillJson),
+      completeness24h: computeCompleteness24h(db, symbol, now),
     };
   });
 }

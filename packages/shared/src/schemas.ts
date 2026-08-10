@@ -54,6 +54,13 @@ export const BackfillRunSchema = z.object({
 });
 export type BackfillRun = z.infer<typeof BackfillRunSchema>;
 
+export const Completeness24hSchema = z.object({
+  expected: z.number(),
+  confirmed: z.number(),
+  missing: z.number(),
+});
+export type Completeness24h = z.infer<typeof Completeness24hSchema>;
+
 export const SymbolStatusSchema = z.object({
   symbol: z.string(),
   connectionStatus: ConnectionStatusSchema,
@@ -62,6 +69,7 @@ export const SymbolStatusSchema = z.object({
   delayMs: z.number().nullable(),
   lastError: z.string().nullable(),
   lastBackfill: BackfillRunSchema.nullable(),
+  completeness24h: Completeness24hSchema,
 });
 export type SymbolStatus = z.infer<typeof SymbolStatusSchema>;
 

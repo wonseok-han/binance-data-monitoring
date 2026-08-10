@@ -133,6 +133,17 @@ export function deleteExpiredCandlesBatch(
   return result.changes;
 }
 
+export function countClosedCandlesInRange(db: DbHandle['db'], symbol: string, from: number, to: number): number {
+  const row = db
+    .select({ count: sql<number>`count(*)` })
+    .from(candles)
+    .where(
+      and(eq(candles.symbol, symbol), eq(candles.isClosed, true), gte(candles.openTime, from), lte(candles.openTime, to)),
+    )
+    .get();
+  return row?.count ?? 0;
+}
+
 export function sumQuoteVolumeSince(db: DbHandle['db'], symbol: string, sinceOpenTimeInclusive: number): number {
   const rows = db
     .select({ quoteVolume: candles.quoteVolume })

@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbHandle } from '../../db/client.js';
+import { upsertCandles } from '../../db/candles.js';
 import { upsertCollectorState } from '../../db/collectorState.js';
 import { createTestDb } from '../../../test/helpers/db.js';
+import { makeCandleSeries } from '../../../test/fixtures/candles.js';
 import { loadConfig } from '../../config.js';
 import { createEventBus } from '../../events/bus.js';
+import { lastCompletedOpenTime } from '../../collector/backfill.js';
 import { buildApp } from '../app.js';
+
+const MINUTE_MS = 60_000;
 
 describe('GET /api/status', () => {
   let dbHandle: DbHandle;
@@ -35,6 +40,7 @@ describe('GET /api/status', () => {
       delayMs: null,
       lastError: null,
       lastBackfill: null,
+      completeness24h: { expected: 1440, confirmed: 0, missing: 1440 },
     });
   });
 
@@ -68,5 +74,17 @@ describe('GET /api/status', () => {
     const btc = body.symbols.find((entry: { symbol: string }) => entry.symbol === 'BTCUSDT');
 
     expect(btc.lastBackfill).toEqual(record);
+  });
+
+  it('reports 24h completeness based on raw 1m candles regardless of gaps', async () => {
+    const end = lastCompletedOpenTime(Date.now());
+    const start = end - 24 * 60 * MINUTE_MS + MINUTE_MS;
+    upsertCandles(dbHandle.db, makeCandleSeries('BTCUSDT', start, 1400)); // 40-minute gap at the end
+
+    const response = await app.inject({ method: 'GET', url: '/api/status' });
+    const body = response.json();
+    const btc = body.symbols.find((entry: { symbol: string }) => entry.symbol === 'BTCUSDT');
+
+    expect(btc.completeness24h).toEqual({ expected: 1440, confirmed: 1400, missing: 40 });
   });
 });

@@ -69,6 +69,7 @@ describe('GET /api/events (SSE)', () => {
       delayMs: 0,
       lastError: null,
       lastBackfill: null,
+      completeness24h: { expected: 1440, confirmed: 0, missing: 1440 },
     });
 
     await readUntil('event: status');

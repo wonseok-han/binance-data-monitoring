@@ -12,6 +12,7 @@ import { computeBackfillRange, runBackfill } from './backfill.js';
 import { klineStreamUrl, parseKlineMessage } from './binanceWs.js';
 import type { WsConnection, WsFactory } from './binanceWs.js';
 import type { EventBus } from '../events/bus.js';
+import { computeCompleteness24h } from '../status/completeness.js';
 
 export interface CollectorLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -77,6 +78,7 @@ export function startCollector(symbol: string, deps: CollectorDeps): Collector {
           delayMs: state.lastEventAt != null ? now() - state.lastEventAt : null,
           lastError: state.lastError,
           lastBackfill: parseBackfillRecord(state.lastBackfillJson),
+          completeness24h: computeCompleteness24h(deps.db, symbol, now()),
         });
       }
     }
