@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DbHandle } from './client.js';
-import { countCandles, deleteExpiredCandlesBatch, upsertCandles } from './candles.js';
+import { countCandles, deleteExpiredCandlesBatch, getEarliestCandle, upsertCandles } from './candles.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { makeCandleSeries } from '../../test/fixtures/candles.js';
 import { MINUTE_MS } from '../config/constants.js';
@@ -60,5 +60,34 @@ describe('deleteExpiredCandlesBatch', () => {
 
     expect(countCandles(dbHandle.db, SYMBOL)).toBe(0);
     expect(countCandles(dbHandle.db, OTHER_SYMBOL)).toBe(10);
+  });
+});
+
+describe('getEarliestCandle', () => {
+  let dbHandle: DbHandle;
+
+  beforeEach(() => {
+    dbHandle = createTestDb();
+  });
+
+  afterEach(() => {
+    dbHandle.sqlite.close();
+  });
+
+  it('returns undefined when the symbol has no candles', () => {
+    expect(getEarliestCandle(dbHandle.db, SYMBOL)).toBeUndefined();
+  });
+
+  it('returns the oldest candle by open_time', () => {
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, 10 * MINUTE_MS, 5));
+
+    expect(getEarliestCandle(dbHandle.db, SYMBOL)?.openTime).toBe(10 * MINUTE_MS);
+  });
+
+  it('ignores other symbols', () => {
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, 100 * MINUTE_MS, 1));
+    upsertCandles(dbHandle.db, makeCandleSeries(OTHER_SYMBOL, 1 * MINUTE_MS, 1));
+
+    expect(getEarliestCandle(dbHandle.db, SYMBOL)?.openTime).toBe(100 * MINUTE_MS);
   });
 });

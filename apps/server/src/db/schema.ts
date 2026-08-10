@@ -28,3 +28,18 @@ export const collectorState = sqliteTable('collector_state', {
   /** JSON으로 직렬화한 BackfillRunRecord: startedAt/finishedAt/durationMs/from/to/count/result/error. */
   lastBackfillJson: text('last_backfill_json'),
 });
+
+/** 장기 백필(최대 BACKFILL_DAYS)의 재개 가능한 진행 상태. 종목별로 최대 하나의 pending/running 작업만 둔다. */
+export const backfillJobs = sqliteTable('backfill_jobs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  symbol: text('symbol').notNull(),
+  fromTime: integer('from_time').notNull(),
+  toTime: integer('to_time').notNull(),
+  cursor: integer('cursor').notNull(),
+  status: text('status').notNull().default('pending'),
+  processedCount: integer('processed_count').notNull().default(0),
+  totalCount: integer('total_count').notNull(),
+  lastError: text('last_error'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});

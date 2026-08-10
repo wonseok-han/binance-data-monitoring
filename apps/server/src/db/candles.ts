@@ -101,6 +101,16 @@ export function getLatestCandle(db: DbHandle['db'], symbol: string) {
     .get();
 }
 
+export function getEarliestCandle(db: DbHandle['db'], symbol: string) {
+  return db
+    .select()
+    .from(candles)
+    .where(eq(candles.symbol, symbol))
+    .orderBy(candles.openTime)
+    .limit(1)
+    .get();
+}
+
 export function getCandleAtOrBefore(db: DbHandle['db'], symbol: string, openTimeInclusiveMax: number) {
   return db
     .select()
