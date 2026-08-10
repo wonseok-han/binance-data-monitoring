@@ -22,7 +22,7 @@ pnpm dev                  # server와 web 개발 서버 동시 실행
 서버가 기동되면 다음 순서로 동작한다.
 
 1. 종목별로 Binance WebSocket(`kline_1m`) 구독을 먼저 시작한다.
-2. DB의 마지막 확정 봉을 조회해 REST로 누락 구간을 백필한다 (최초 실행은 `BACKFILL_HOURS`만큼).
+2. DB의 마지막 확정 봉을 조회해 REST로 누락 구간을 백필한다 (최초 실행은 `BACKFILL_DAYS`만큼).
 3. 백필 중 버퍼링된 실시간 이벤트를 시간순으로 반영하고 실시간 upsert 모드로 전환한다.
 4. 연결이 끊기면 지수 백오프로 재연결하고, 재연결 시마다 같은 절차로 갭을 채운다.
 
@@ -68,8 +68,16 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | `BINANCE_REST_URL` | `https://api.binance.com` | Binance REST API base URL |
 | `BINANCE_WS_URL` | `wss://stream.binance.com:9443` | Binance WebSocket base URL |
 | `SYMBOLS` | `BTCUSDT,ETHUSDT` | 수집할 종목 (쉼표 구분, API의 symbol 허용 목록도 이 값으로 결정된다) |
-| `BACKFILL_HOURS` | `24` | 최초 백필 시작 시점 (현재로부터 몇 시간 전부터) |
+| `BACKFILL_DAYS` | `30` | 최초 백필 시작 시점 (현재로부터 며칠 전부터), 양의 정수 |
+| `RETENTION_DAYS` | `30` | 1분봉 보존 기간 (이보다 오래된 봉은 정리 작업이 삭제), 양의 정수 |
+| `RETENTION_CLEANUP_INTERVAL_HOURS` | `6` | 만료 데이터 정리 작업 실행 주기 (시간), 양의 정수 |
 | `STALE_AFTER_SECONDS` | `10` | 이 시간 동안 이벤트가 없으면 `stale`로 표시하고 재연결 |
+| `RECONNECT_BASE_DELAY_MS` | `1000` | WebSocket 재연결 지수 백오프 시작 지연 (ms) |
+| `RECONNECT_MAX_DELAY_MS` | `30000` | WebSocket 재연결 지수 백오프 최대 지연 (ms) |
+| `BINANCE_REST_MAX_RETRIES` | `3` | REST 요청이 재시도 가능한 오류일 때 최대 재시도 횟수 (0 이상) |
+| `BINANCE_REST_RETRY_DELAY_MS` | `500` | REST 재시도 기본 지연 (ms, `Retry-After` 없을 때 시도마다 지수 증가) |
+| `SSE_HEARTBEAT_MS` | `15000` | `/api/events` heartbeat 주기 (ms) |
+| `CORS_ORIGIN` | `*` | 허용 CORS origin. `*` 또는 쉼표로 구분한 origin 목록 |
 | `LOG_LEVEL` | `info` | pino 로그 레벨 |
 | `VITE_API_BASE_URL` | 빈 값 | web을 분리 배포할 때 사용할 API base URL |
 
@@ -83,7 +91,7 @@ Binance 공개 시세 API만 사용하므로 API key는 필요 없다.
 | --- | --- | --- |
 | GET | `/health` | 프로세스와 DB 접근 여부 확인 |
 | GET | `/api/status` | 종목별 연결 상태, 마지막 이벤트 시각, 지연 시간(`delayMs`) |
-| GET | `/api/candles?symbol=BTCUSDT&from=&to=&limit=500` | 기간별 봉 조회 (open_time 오름차순, `limit` 기본 500 · 최대 2000) |
+| GET | `/api/candles?symbol=BTCUSDT&interval=1m&from=&to=&limit=500` | 기간별 봉 조회 (`interval`: `1m`\|`6h`\|`1d`, 기본 `1m`; open_time 오름차순; `limit`은 집계 후 봉 개수에 적용, 기본 500 · 최대 2000) |
 | GET | `/api/summary?symbol=BTCUSDT` | 현재가, 1시간 등락률, 1시간 거래대금 |
 | GET | `/api/events` | `candle`/`status` SSE 스트림 |
 
@@ -95,6 +103,7 @@ Binance 공개 시세 API만 사용하므로 API key는 필요 없다.
 apps/
   server/                 # 수집기, SQLite 저장소, REST/SSE API (Claude 담당)
     src/collector/        # Binance REST/WebSocket 연동, 백필, 재연결
+    src/aggregation/       # 봉 주기 집계 (domain/application/infrastructure 경계)
     src/db/                # Drizzle 스키마·마이그레이션·리포지토리
     src/http/              # Fastify 라우트, 검증, 에러 포맷
     src/events/             # SSE용 in-process pub/sub

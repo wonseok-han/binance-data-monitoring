@@ -16,7 +16,11 @@ runMigrations(dbHandle);
 const events = createEventBus();
 const app = buildApp({ db: dbHandle, config, events });
 
-const restClient = createBinanceRestClient({ baseUrl: config.BINANCE_REST_URL });
+const restClient = createBinanceRestClient({
+  baseUrl: config.BINANCE_REST_URL,
+  maxRetries: config.BINANCE_REST_MAX_RETRIES,
+  retryDelayMs: config.BINANCE_REST_RETRY_DELAY_MS,
+});
 const wsFactory = createWsFactory();
 
 const collectorLogger = {
@@ -30,8 +34,10 @@ const collectors = config.symbols.map((symbol) =>
     fetchKlines: restClient.fetchKlines,
     wsFactory,
     wsBaseUrl: config.BINANCE_WS_URL,
-    backfillHours: config.BACKFILL_HOURS,
+    backfillHours: config.BACKFILL_DAYS * 24,
     staleAfterSeconds: config.STALE_AFTER_SECONDS,
+    reconnectBaseDelayMs: config.RECONNECT_BASE_DELAY_MS,
+    reconnectMaxDelayMs: config.RECONNECT_MAX_DELAY_MS,
     events,
     logger: collectorLogger,
   }),

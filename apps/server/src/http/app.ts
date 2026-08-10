@@ -18,7 +18,7 @@ export interface AppDeps {
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: { level: deps.config.LOG_LEVEL } });
 
-  app.register(cors, { origin: true });
+  app.register(cors, { origin: deps.config.corsOrigin });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {

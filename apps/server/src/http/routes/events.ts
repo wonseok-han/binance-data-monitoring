@@ -21,7 +21,7 @@ export function registerEventsRoute(app: FastifyInstance, deps: AppDeps): void {
 
     const heartbeat = setInterval(() => {
       reply.raw.write(': heartbeat\n\n');
-    }, 15_000);
+    }, deps.config.SSE_HEARTBEAT_MS);
 
     request.raw.on('close', () => {
       clearInterval(heartbeat);
