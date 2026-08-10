@@ -11,10 +11,10 @@ export interface ShutdownDeps {
 }
 
 /**
- * Stops accepting new work first (collector sockets/timers), then lets
- * Fastify drain in-flight requests, and only closes the DB handle once
- * both have settled. Idempotent: a second signal during shutdown is a
- * no-op rather than double-closing the DB.
+ * 신규 작업 수락(수집기 소켓/타이머)부터 먼저 멈춘 뒤 Fastify가 처리
+ * 중인 요청을 마무리하게 하고, 둘 다 정리된 뒤에야 DB 핸들을 닫는다.
+ * 멱등적으로 동작한다: 종료 도중 두 번째 신호가 와도 DB를 이중으로
+ * 닫지 않고 아무 동작도 하지 않는다.
  */
 export function createShutdownHandler(deps: ShutdownDeps): (signal: string) => Promise<void> {
   let shuttingDown = false;

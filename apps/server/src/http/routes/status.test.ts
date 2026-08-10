@@ -79,7 +79,7 @@ describe('GET /api/status', () => {
   it('reports 24h completeness based on raw 1m candles regardless of gaps', async () => {
     const end = lastCompletedOpenTime(Date.now());
     const start = end - 24 * 60 * MINUTE_MS + MINUTE_MS;
-    upsertCandles(dbHandle.db, makeCandleSeries('BTCUSDT', start, 1400)); // 40-minute gap at the end
+    upsertCandles(dbHandle.db, makeCandleSeries('BTCUSDT', start, 1400)); // 끝부분에 40분 갭
 
     const response = await app.inject({ method: 'GET', url: '/api/status' });
     const body = response.json();

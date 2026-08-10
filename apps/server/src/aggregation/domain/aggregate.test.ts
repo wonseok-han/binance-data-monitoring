@@ -33,7 +33,7 @@ describe('aggregateCandles: 1m', () => {
 });
 
 describe('aggregateCandles: 6h', () => {
-  const bucketOpen = 6 * 60 * 60 * 1000 * 4; // an arbitrary UTC 6h boundary
+  const bucketOpen = 6 * 60 * 60 * 1000 * 4; // 임의의 UTC 6시간 경계
 
   it('computes OHLC from first open / max high / min low / last close, and sums volume precisely', () => {
     const candles: Candle[] = [
@@ -55,7 +55,7 @@ describe('aggregateCandles: 6h', () => {
       volume: '0.35',
       quoteVolume: '4.35',
       tradeCount: 10,
-      isClosed: false, // only 3 of the expected 360 one-minute candles are present
+      isClosed: false, // 기대되는 360개 1분봉 중 3개만 존재함
     });
   });
 
@@ -84,7 +84,7 @@ describe('aggregateCandles: 6h', () => {
 describe('aggregateCandles: 1d', () => {
   it('aligns bucket boundaries to UTC midnight', () => {
     const dayOpen = Date.UTC(2024, 5, 15, 0, 0, 0);
-    const withinDay = dayOpen + 23 * 60 * MINUTE_MS; // 23:00 UTC same day
+    const withinDay = dayOpen + 23 * 60 * MINUTE_MS; // 같은 날 UTC 23:00
 
     const result = aggregateCandles([candle(withinDay)], '1d');
 

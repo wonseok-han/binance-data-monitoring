@@ -19,9 +19,9 @@ export interface GetCandlesUseCaseDeps {
 export type GetCandlesUseCase = (query: GetCandlesQuery) => Candle[];
 
 /**
- * `1m` is served straight from the repository's efficient SQL-side
- * LIMIT query. Larger intervals fetch the full underlying 1m range (bounded
- * by the retention window) and aggregate in-process before applying limit.
+ * `1m`은 리포지토리의 효율적인 SQL LIMIT 쿼리로 바로 조회한다.
+ * 그보다 큰 봉 주기는 (보존 기간으로 범위가 제한된) 전체 1분봉을 가져와
+ * 프로세스 내에서 집계한 뒤 limit을 적용한다.
  */
 export function createGetCandlesUseCase(deps: GetCandlesUseCaseDeps): GetCandlesUseCase {
   return function getCandles(query: GetCandlesQuery): Candle[] {

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../app.js';
 
-/** SSE stream of `candle` and `status` events, per docs/DESIGN.md section 7. */
+/** docs/DESIGN.md 7절에 따른 `candle`/`status` 이벤트 SSE 스트림. */
 export function registerEventsRoute(app: FastifyInstance, deps: AppDeps): void {
   app.get('/api/events', (request, reply) => {
     reply.hijack();

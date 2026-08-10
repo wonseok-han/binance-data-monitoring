@@ -29,13 +29,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Unexpected error' } });
   });
 
-  // Liveness: the process is up and the event loop is responsive. No DB access,
-  // so it never fails just because SQLite is momentarily busy.
+  // Liveness: 프로세스가 살아있고 이벤트 루프가 응답하는지만 확인한다. DB에
+  // 접근하지 않으므로 SQLite가 일시적으로 바쁘다는 이유로 실패하지 않는다.
   app.get('/health/live', async () => {
     return { status: 'ok' as const };
   });
 
-  // Readiness: the process can actually serve requests (DB reachable).
+  // Readiness: 프로세스가 실제로 요청을 처리할 수 있는지(DB 접근 가능) 확인한다.
   app.get('/health/ready', async () => {
     deps.db.sqlite.prepare('SELECT 1').get();
     return { status: 'ok' as const };

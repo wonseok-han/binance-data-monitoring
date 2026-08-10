@@ -41,7 +41,7 @@ describe('computeCompleteness24h', () => {
   it('counts a gap as missing even though its time window has already elapsed', () => {
     const end = lastCompletedOpenTime(NOW);
     const start = end - 24 * 60 * MINUTE_MS + MINUTE_MS;
-    // only the first 1400 minutes were backfilled; the last 40 are a gap
+    // 처음 1400분만 백필되었고 마지막 40분은 갭이다
     upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start, 1400));
 
     const result = computeCompleteness24h(dbHandle.db, SYMBOL, NOW);
@@ -66,7 +66,7 @@ describe('computeCompleteness24h', () => {
   it('ignores candles outside the trailing 24h window', () => {
     const end = lastCompletedOpenTime(NOW);
     const start = end - 24 * 60 * MINUTE_MS + MINUTE_MS;
-    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start - 10 * MINUTE_MS, 10)); // older than the window
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start - 10 * MINUTE_MS, 10)); // 구간보다 오래된 데이터
     upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start, 1440));
 
     const result = computeCompleteness24h(dbHandle.db, SYMBOL, NOW);

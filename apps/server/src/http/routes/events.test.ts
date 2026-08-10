@@ -45,7 +45,7 @@ describe('GET /api/events (SSE)', () => {
       }
     };
 
-    // give the server a tick to register the SSE subscription before publishing
+    // 발행 전에 서버가 SSE 구독을 등록할 시간을 준다
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     events.emitCandle('BTCUSDT', {

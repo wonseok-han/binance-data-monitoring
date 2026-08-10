@@ -89,7 +89,7 @@ describe('GET /api/candles', () => {
   });
 
   it('aggregates into a single confirmed 6h bucket once all 360 underlying 1m candles are closed', async () => {
-    const bucketOpen = 6 * 60 * 60 * 1000 * 10; // an arbitrary UTC 6h boundary
+    const bucketOpen = 6 * 60 * 60 * 1000 * 10; // 임의의 UTC 6시간 경계
     upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, bucketOpen, 360));
 
     const response = await app.inject({

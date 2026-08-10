@@ -26,9 +26,9 @@ describe('startRetentionCleanup', () => {
     const retentionDays = 30;
     const cutoff = now - retentionDays * DAY_MS;
 
-    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL_A, 0, 100)); // all before cutoff
-    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL_A, cutoff, 5)); // at/after cutoff, survives
-    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL_B, 0, 50)); // all before cutoff
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL_A, 0, 100)); // 모두 cutoff 이전
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL_A, cutoff, 5)); // cutoff 이상, 살아남아야 함
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL_B, 0, 50)); // 모두 cutoff 이전
 
     const sleep = vi.fn(() => Promise.resolve());
     const scheduler = startRetentionCleanup({
@@ -86,7 +86,7 @@ describe('startRetentionCleanup', () => {
       now: () => now,
     });
 
-    // nothing happens before the first interval elapses
+    // 첫 주기가 지나기 전에는 아무 일도 일어나지 않는다
     await vi.advanceTimersByTimeAsync(59 * 60 * 1000);
     expect(countCandles(dbHandle.db, SYMBOL_A)).toBe(13);
 

@@ -24,16 +24,16 @@ export interface RetentionDeps {
 
 export interface RetentionScheduler {
   stop: () => void;
-  /** Runs one cleanup pass immediately; exposed for tests and manual ops triggers. */
+  /** 정리 작업을 즉시 한 번 실행한다. 테스트와 수동 운영 트리거를 위해 노출한다. */
   runOnce: () => Promise<number>;
 }
 
 /**
- * Periodically deletes 1m candles older than RETENTION_DAYS. Each pass
- * deletes in small batches and yields the event loop between them so a
- * large backlog never starves the collector's WS handling or the HTTP
- * server. The first pass runs after one interval, not immediately at
- * startup, to avoid competing with the initial backfill.
+ * RETENTION_DAYS보다 오래된 1분봉을 주기적으로 삭제한다. 매 실행마다
+ * 작은 배치 단위로 삭제하고 배치 사이에 이벤트 루프를 양보하므로, 대량의
+ * 삭제 대상이 있어도 수집기의 WS 처리나 HTTP 서버가 굶주리지 않는다.
+ * 초기 백필과 자원을 다투지 않도록 첫 실행은 기동 직후가 아니라 한
+ * 주기가 지난 뒤에 수행한다.
  */
 export function startRetentionCleanup(deps: RetentionDeps): RetentionScheduler {
   const now = deps.now ?? Date.now;

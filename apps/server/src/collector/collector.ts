@@ -41,11 +41,11 @@ export interface Collector {
 }
 
 /**
- * Starts (and keeps alive) the collector for a single symbol: the WebSocket
- * subscription is opened before the REST backfill runs so events are never
- * missed, incoming events are buffered until the backfill+flush completes,
- * and the same connect-buffer-backfill-flush cycle is reused on every
- * reconnect to gap-fill whatever was missed while disconnected.
+ * 종목 하나의 수집기를 시작(하고 계속 유지)한다: 이벤트를 놓치지 않도록
+ * REST 백필을 실행하기 전에 WebSocket 구독을 먼저 연다. 백필+flush가
+ * 끝날 때까지 들어오는 이벤트는 버퍼링하며, 재연결 시에도 동일한
+ * connect-buffer-backfill-flush 절차를 재사용해 연결이 끊긴 동안
+ * 놓친 구간을 gap-fill한다.
  */
 export function startCollector(symbol: string, deps: CollectorDeps): Collector {
   const now = deps.now ?? Date.now;

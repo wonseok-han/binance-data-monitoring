@@ -8,9 +8,9 @@ export interface CollectorStateUpdate {
   lastEventAt?: number;
   lastClosedOpenTime?: number;
   connectionStatus?: ConnectionStatus;
-  /** `null` clears the stored error; `undefined` leaves it untouched. */
+  /** `null`이면 저장된 오류를 지운다; `undefined`면 그대로 둔다. */
   lastError?: string | null;
-  /** JSON-encoded BackfillRunRecord; `undefined` leaves it untouched. */
+  /** JSON으로 직렬화한 BackfillRunRecord; `undefined`면 그대로 둔다. */
   lastBackfillJson?: string | null;
 }
 

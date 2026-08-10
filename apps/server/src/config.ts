@@ -42,7 +42,7 @@ export interface AppConfig {
   SSE_HEARTBEAT_MS: number;
   LOG_LEVEL: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
   symbols: string[];
-  /** `true` allows any origin (CORS_ORIGIN="*"); otherwise the exact allow-list. */
+  /** `true`면 모든 origin을 허용한다(CORS_ORIGIN="*"); 그 외에는 정확한 허용 목록. */
   corsOrigin: true | string[];
 }
 

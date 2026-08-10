@@ -7,7 +7,7 @@ describe('addDecimalStrings', () => {
   });
 
   it('avoids the float precision loss that Number() summation has', () => {
-    // Number('0.1') + Number('0.2') === 0.30000000000000004 in JS floats.
+    // JS의 float 연산에서는 Number('0.1') + Number('0.2') === 0.30000000000000004 이다.
     expect(addDecimalStrings(['0.1', '0.2'])).toBe('0.3');
   });
 

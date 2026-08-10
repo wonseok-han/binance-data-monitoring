@@ -1,8 +1,8 @@
 /**
- * Sums decimal strings (e.g. Binance's volume/quoteVolume fields) without the
- * float precision loss that `values.reduce((a, b) => a + Number(b), 0)` would
- * introduce. Scales every value to the widest decimal precision present,
- * sums as BigInt, then reinserts the decimal point.
+ * decimal 문자열(예: Binance의 volume/quoteVolume 필드)을 합산한다.
+ * `values.reduce((a, b) => a + Number(b), 0)`처럼 float로 변환해 더하면
+ * 발생하는 정밀도 손실이 없다. 모든 값을 가장 넓은 소수 자릿수에 맞춰
+ * 스케일링한 뒤 BigInt로 합산하고, 다시 소수점을 끼워 넣는다.
  */
 export function addDecimalStrings(values: string[]): string {
   if (values.length === 0) return '0';

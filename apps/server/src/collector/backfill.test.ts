@@ -9,7 +9,7 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const SYMBOL = 'BTCUSDT';
 
-// 2024-03-01T00:00:37.123Z, deliberately not aligned to a minute boundary.
+// 2024-03-01T00:00:37.123Z, 의도적으로 분 경계에 맞추지 않았다.
 const NOW = Date.UTC(2024, 2, 1, 0, 0, 37, 123);
 
 describe('lastCompletedOpenTime', () => {
@@ -114,7 +114,7 @@ describe('runBackfill', () => {
     const deps = { db: dbHandle.db, fetchKlines, now: () => NOW };
 
     await runBackfill(deps, SYMBOL, backfillHours);
-    // A second run with the same "now" has nothing left to backfill.
+    // 같은 "now"로 두 번째 실행하면 더 이상 백필할 것이 없다.
     const secondRunTotal = await runBackfill(deps, SYMBOL, backfillHours);
 
     expect(secondRunTotal).toBe(0);

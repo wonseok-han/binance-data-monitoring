@@ -1,18 +1,18 @@
 import { z } from 'zod';
 
 const KlineSchema = z.tuple([
-  z.number(), // open time
-  z.string(), // open
-  z.string(), // high
-  z.string(), // low
-  z.string(), // close
-  z.string(), // volume
-  z.number(), // close time
-  z.string(), // quote asset volume
-  z.number(), // trade count
-  z.string(), // taker buy base volume
-  z.string(), // taker buy quote volume
-  z.string(), // unused
+  z.number(), // 시가 시각
+  z.string(), // 시가
+  z.string(), // 고가
+  z.string(), // 저가
+  z.string(), // 종가
+  z.string(), // 거래량
+  z.number(), // 종가 시각
+  z.string(), // 거래대금(USDT)
+  z.number(), // 체결 수
+  z.string(), // taker 매수 base 거래량
+  z.string(), // taker 매수 quote 거래량
+  z.string(), // 사용하지 않음
 ]);
 
 const KlinesResponseSchema = z.array(KlineSchema);

@@ -64,7 +64,7 @@ export interface QueryCandlesOptions {
   limit: number;
 }
 
-/** Returns up to `limit` candles within [from, to], ascending by open_time. */
+/** [from, to] 범위 내에서 최대 `limit`개의 봉을 open_time 오름차순으로 반환한다. */
 export function queryCandles(db: DbHandle['db'], symbol: string, options: QueryCandlesOptions) {
   const conditions = [eq(candles.symbol, symbol)];
   if (options.from !== undefined) conditions.push(gte(candles.openTime, options.from));
@@ -81,7 +81,7 @@ export function queryCandles(db: DbHandle['db'], symbol: string, options: QueryC
   return rows.reverse();
 }
 
-/** Every candle within [from, to], ascending. No limit — callers bound the range themselves. */
+/** [from, to] 범위 내 모든 봉, 오름차순. limit이 없으므로 호출자가 직접 범위를 제한해야 한다. */
 export function getCandlesInRange(db: DbHandle['db'], symbol: string, from: number, to: number) {
   return db
     .select()
@@ -112,10 +112,10 @@ export function getCandleAtOrBefore(db: DbHandle['db'], symbol: string, openTime
 }
 
 /**
- * Deletes up to `batchSize` candles older than `cutoffOpenTime` for one
- * symbol and returns how many were removed. Callers loop this (yielding the
- * event loop between calls) instead of issuing one unbounded DELETE, so a
- * large backlog never blocks the collector/HTTP server for long.
+ * 한 종목에 대해 `cutoffOpenTime`보다 오래된 봉을 최대 `batchSize`개
+ * 삭제하고 삭제된 개수를 반환한다. 호출자는 크기 제한 없는 DELETE 한 번
+ * 대신 이 함수를 (호출 사이마다 이벤트 루프를 양보하며) 반복 호출하므로,
+ * 삭제 대상이 많아도 수집기나 HTTP 서버가 오래 막히지 않는다.
  */
 export function deleteExpiredCandlesBatch(
   db: DbHandle['db'],

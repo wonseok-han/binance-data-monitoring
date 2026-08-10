@@ -11,8 +11,8 @@ export interface BackfillRange {
 }
 
 /**
- * The backfill end boundary is the last fully completed 1-minute candle,
- * never the candle currently in progress.
+ * 백필 종료 경계는 항상 마지막으로 완전히 종료된 1분봉이며,
+ * 현재 진행 중인 봉은 절대 포함하지 않는다.
  */
 export function lastCompletedOpenTime(now: number): number {
   return Math.floor(now / MINUTE_MS) * MINUTE_MS - MINUTE_MS;

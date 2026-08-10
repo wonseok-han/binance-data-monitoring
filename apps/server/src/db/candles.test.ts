@@ -21,8 +21,8 @@ describe('deleteExpiredCandlesBatch', () => {
 
   it('deletes only candles strictly older than the cutoff', () => {
     const cutoff = 100 * MINUTE_MS;
-    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, 0, 100)); // opens 0..99*MINUTE_MS, all < cutoff
-    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, cutoff, 5)); // opens >= cutoff, must survive
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, 0, 100)); // open_time이 0..99*MINUTE_MS, 모두 cutoff 미만
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, cutoff, 5)); // open_time이 cutoff 이상, 살아남아야 함
 
     const deleted = deleteExpiredCandlesBatch(dbHandle.db, SYMBOL, cutoff, 1000);
 

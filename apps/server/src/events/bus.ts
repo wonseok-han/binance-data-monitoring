@@ -22,9 +22,9 @@ export interface EventBus {
 }
 
 /**
- * In-process pub/sub used to fan out DB-confirmed candle/status changes to
- * SSE subscribers. Nothing is ever published before the corresponding write
- * to SQLite has already committed.
+ * DB에 반영이 확정된 candle/status 변경을 SSE 구독자에게 전파하는
+ * 프로세스 내 pub/sub. 대응하는 SQLite 쓰기가 커밋되기 전에는
+ * 절대 이벤트를 발행하지 않는다.
  */
 export function createEventBus(): EventBus {
   const emitter = new EventEmitter();

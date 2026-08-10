@@ -5,7 +5,7 @@ import { lastCompletedOpenTime } from '../collector/backfill.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60_000;
 
-/** Expected count is fixed regardless of chart timeframe selection: raw 1m candles over the trailing 24h window. */
+/** 기대 개수는 차트 봉 주기 선택과 무관하게 고정된다: 최근 24시간 원본 1분봉 기준. */
 export const EXPECTED_24H_CANDLES = DAY_MS / MINUTE_MS;
 
 export interface Completeness24h {

@@ -25,6 +25,6 @@ export const collectorState = sqliteTable('collector_state', {
   lastClosedOpenTime: integer('last_closed_open_time'),
   connectionStatus: text('connection_status').notNull().default('connecting'),
   lastError: text('last_error'),
-  /** JSON-encoded BackfillRunRecord: startedAt/finishedAt/durationMs/from/to/count/result/error. */
+  /** JSON으로 직렬화한 BackfillRunRecord: startedAt/finishedAt/durationMs/from/to/count/result/error. */
   lastBackfillJson: text('last_backfill_json'),
 });
