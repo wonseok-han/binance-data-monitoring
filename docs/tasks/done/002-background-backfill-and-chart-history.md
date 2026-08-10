@@ -1,6 +1,6 @@
 # 002. 백그라운드 백필과 차트 과거 탐색 개선
 
-- 상태: `in-progress`
+- 상태: `done`
 - 백엔드 담당: Claude
 - UI 담당: Codex
 - 기준 설계: `docs/DESIGN.md`
@@ -163,21 +163,21 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 ### UI 보완 — Codex
 
-- [ ] AbortSignal을 사용하는 초기 snapshot도 같은 URL의 동시 요청을 공유해 StrictMode 중복 제거
-- [ ] EventSource의 브라우저 기본 재연결에만 의존하지 않고 명시적인 close·지수 백오프·재생성 구현
-- [ ] SSE 복구 후 status, summary, 현재 candle page를 정확히 한 번 재동기화
-- [ ] 빈 본문과 비 JSON 오류 응답을 안전하게 처리하고 사용자용 네트워크 오류 메시지 표시
-- [ ] 재연결 timer와 진행 중 요청을 unmount·종목 전환 시 정리하는 테스트 추가
+- [x] AbortSignal을 사용하는 초기 snapshot도 같은 URL의 동시 요청을 공유해 StrictMode 중복 제거
+- [x] EventSource의 브라우저 기본 재연결에만 의존하지 않고 명시적인 close·지수 백오프·재생성 구현
+- [x] SSE 복구 후 status, summary, 현재 candle page를 정확히 한 번 재동기화
+- [x] 빈 본문과 비 JSON 오류 응답을 안전하게 처리하고 사용자용 네트워크 오류 메시지 표시
+- [x] 재연결 timer와 진행 중 요청을 unmount·종목 전환 시 정리하는 테스트 추가
 
 ### 네트워크 재검증 조건
 
-- [ ] 최초 로드에서 status, summary, candles와 SSE 연결이 의도한 횟수만 발생하고 모두 정상 응답
-- [ ] 35초 유휴 상태에서 30초 polling이 발생하지 않음
-- [ ] 활성 SSE 상태에서 서버 종료 시 graceful shutdown 완료 및 UI가 재연결 상태로 전환
-- [ ] 서버 재기동 후 `/api/events` 재연결과 snapshot 1회 동기화 후 `실시간 연결됨` 복귀
-- [ ] API 장애와 복구 과정에서 예상하지 않은 `4xx`/`5xx`, 중복 요청, 기술적인 JSON 파싱 오류 문구가 없음
-- [ ] 보완 후 전체 테스트와 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` 통과
-- [ ] 최종 동작이 바뀌면 `docs/DESIGN.md`와 README를 함께 갱신하고 다시 `done`으로 이동
+- [x] 최초 로드에서 status, summary, candles와 SSE 연결이 의도한 횟수만 발생하고 모두 정상 응답
+- [x] 35초 유휴 상태에서 30초 polling이 발생하지 않음
+- [x] 활성 SSE 상태에서 서버 종료 시 graceful shutdown 완료 및 UI가 재연결 상태로 전환
+- [x] 서버 재기동 후 `/api/events` 재연결과 snapshot 1회 동기화 후 `실시간 연결됨` 복귀
+- [x] API 장애와 복구 과정에서 예상하지 않은 `4xx`/`5xx`, 중복 요청, 기술적인 JSON 파싱 오류 문구가 없음
+- [x] 보완 후 전체 테스트와 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` 통과
+- [x] 최종 동작이 바뀌면 `docs/DESIGN.md`와 README를 함께 갱신하고 다시 `done`으로 이동
 
 ## 완료 조건
 
@@ -217,13 +217,14 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 | `feat/2-event-sync-cursor-history` | 이벤트 중심 동기화, 동일 요청 공유, SSE 재연결 snapshot과 cursor 과거 탐색 |
 | `feat/2-backfill-operations-ui` | 백필 진행률·coverage·재시도 상태 UI와 반응형·접근성 표시 |
 | `feat/2-sse-shutdown-drain` | SSE 클라이언트 레지스트리 추가, shutdown이 HTTP drain 전에 활성 SSE 연결을 명시적으로 종료 |
+| `feat/2-ui-network-recovery` | 초기 요청 공유, SSE 지수 백오프 재생성, 복구 snapshot과 안전한 오류 처리 |
 
 모두 로컬 `main`에 `--ff-only`로 반영되어 있고 원격 push는 하지 않았다.
 
 ### 자동 검증
 
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — workspace 전체(`packages/shared`, `apps/server`, `apps/web`) 통과.
-- `apps/server` 테스트 120개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown(SSE 클라이언트 종료 순서 포함)·binanceRest 오류 분류·sseRegistry 테스트 포함), `packages/shared` 4개, `apps/web` 22개 모두 통과.
+- `apps/server` 테스트 120개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown(SSE 클라이언트 종료 순서 포함)·binanceRest 오류 분류·sseRegistry 테스트 포함), `packages/shared` 4개, `apps/web` 26개 모두 통과.
 - 공용 스키마의 `historicalBackfill`, `coverage`, `page`, `retryCount`/`nextRetryAt` 계약을 UI가 직접 사용하며 typecheck/test/build로 함께 검증했다.
 - 네트워크 호출은 fixture와 주입 가능한 clock/REST/WebSocket 더블로 대체했고 기본 테스트 스위트에는 포함하지 않았다.
 - `apps/server/src/http/routes/events.test.ts`에 실제 Fastify 서버·실제 SSE 연결·실제 `createShutdownHandler`를 사용하는 통합 테스트를 추가해, 활성 SSE 연결이 있는 상태에서 shutdown이 타임아웃 없이 끝나고 클라이언트가 실제로 스트림 종료(`done: true`)를 관찰함을 검증했다(회귀 시 테스트가 타임아웃으로 실패한다).
@@ -240,9 +241,11 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 ## UI 검증 결과 (Codex)
 
-- UI 테스트 22개에서 5분 안전망, 확정봉 기반 집계 재조회, SSE 재연결 snapshot, 동일 URL 요청 공유, cursor 병합·중복 제거와 차트 논리 위치 보존을 검증했다.
+- UI 테스트 26개에서 5분 안전망, 확정봉 기반 집계 재조회, AbortSignal 소비자 간 동일 URL 요청 공유, SSE 지수 백오프 재생성·재연결 snapshot, 빈·비 JSON 오류 처리, timer·요청 정리, cursor 병합·중복 제거와 차트 논리 위치 보존을 검증했다.
 - 실제 Binance 연동 화면에서 `to=<nextBefore>` 요청, 백필 진행률과 실제 보유 범위 갱신, 이전 데이터 버튼을 확인했다.
-- 데스크톱과 390px 모바일 화면에서 차트·운영 카드·테이블 배치를 확인했다. 이후 별도 네트워크 QA에서 console 오류 없이 발생하는 SSE 결함을 확인해 위 보완 작업으로 다시 열었다.
+- 실제 Vite proxy 환경의 최초 로드에서 status, summary, candles와 SSE가 각각 1회만 연결됨을 API 구조화 로그로 확인했다. 활성 SSE 상태에서 API를 종료하면 UI가 `스트림 재연결 중`으로 바뀌고 서버는 `shutdown complete`까지 종료됐다. API 재기동 후 `/api/events`와 세 snapshot 요청이 각각 1회 발생하고 `실시간 연결됨`으로 복귀했다.
+- API가 없는 상태에서 새로고침해도 `Unexpected end of JSON input` 같은 기술적인 문구 없이 사용자용 오류와 `다시 시도`가 표시되며, 브라우저 console 오류는 없었다.
+- 데스크톱과 390px 모바일 화면에서 차트·운영 카드·테이블 배치를 확인했다.
 
 ## 남은 위험
 
