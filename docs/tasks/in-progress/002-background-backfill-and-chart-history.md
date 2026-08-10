@@ -155,9 +155,11 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 ### 백엔드 보완 — Claude
 
-- [ ] 활성 SSE 클라이언트를 추적하고 shutdown 시 HTTP drain 전에 명시적으로 종료
-- [ ] SSE 구독 중 `SIGTERM`에서도 정해진 순서로 `shutdown complete`까지 종료되는 통합 테스트 추가
-- [ ] 서버 종료가 Vite proxy를 거친 브라우저에도 스트림 종료로 전달되는지 실연동 검증
+- [x] 활성 SSE 클라이언트를 추적하고 shutdown 시 HTTP drain 전에 명시적으로 종료
+- [x] SSE 구독 중 `SIGTERM`에서도 정해진 순서로 `shutdown complete`까지 종료되는 통합 테스트 추가
+- [x] 서버 종료가 Vite proxy를 거친 브라우저에도 스트림 종료로 전달되는지 실연동 검증
+
+백엔드 보완은 완료했다(원인·조치·검증은 문서 하단 "백엔드 검증 결과"의 `feat/2-sse-shutdown-drain` 항목 참고). UI 보완이 남아 있어 이 절은 계속 열어 둔다.
 
 ### UI 보완 — Codex
 
@@ -214,15 +216,17 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 | `feat/2-backfill-job-retry` | 장기 백필 job 영속적 자동 재시도(지수 백오프), `retrying` 상태·`retryCount`/`nextRetryAt` 노출 |
 | `feat/2-event-sync-cursor-history` | 이벤트 중심 동기화, 동일 요청 공유, SSE 재연결 snapshot과 cursor 과거 탐색 |
 | `feat/2-backfill-operations-ui` | 백필 진행률·coverage·재시도 상태 UI와 반응형·접근성 표시 |
+| `feat/2-sse-shutdown-drain` | SSE 클라이언트 레지스트리 추가, shutdown이 HTTP drain 전에 활성 SSE 연결을 명시적으로 종료 |
 
 모두 로컬 `main`에 `--ff-only`로 반영되어 있고 원격 push는 하지 않았다.
 
 ### 자동 검증
 
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — workspace 전체(`packages/shared`, `apps/server`, `apps/web`) 통과.
-- `apps/server` 테스트 115개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown·binanceRest 오류 분류 테스트 포함), `packages/shared` 4개, `apps/web` 22개 모두 통과.
+- `apps/server` 테스트 120개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown(SSE 클라이언트 종료 순서 포함)·binanceRest 오류 분류·sseRegistry 테스트 포함), `packages/shared` 4개, `apps/web` 22개 모두 통과.
 - 공용 스키마의 `historicalBackfill`, `coverage`, `page`, `retryCount`/`nextRetryAt` 계약을 UI가 직접 사용하며 typecheck/test/build로 함께 검증했다.
 - 네트워크 호출은 fixture와 주입 가능한 clock/REST/WebSocket 더블로 대체했고 기본 테스트 스위트에는 포함하지 않았다.
+- `apps/server/src/http/routes/events.test.ts`에 실제 Fastify 서버·실제 SSE 연결·실제 `createShutdownHandler`를 사용하는 통합 테스트를 추가해, 활성 SSE 연결이 있는 상태에서 shutdown이 타임아웃 없이 끝나고 클라이언트가 실제로 스트림 종료(`done: true`)를 관찰함을 검증했다(회귀 시 테스트가 타임아웃으로 실패한다).
 
 ### 실서버 스모크 테스트 (Binance 실연동)
 
@@ -232,6 +236,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - 75초간 SSE(`/api/events`)를 구독해 확정 1분봉 저장 시 `event: status`가 정확히 발행됨을 확인(연결 상태 변화가 없어도 발행됨).
 - 잘못된 설정(`RETENTION_DAYS < BACKFILL_DAYS`)이 서버 시작 전 오류로 거부됨을 확인.
 - (재시도 기능 추가 후) `BACKFILL_DAYS=1`로 새 DB에서 실제 Binance 연동으로 기동 → 정상 완료된 job의 `/api/status`에 `historicalBackfill.retryCount: 0`, `nextRetryAt: null`이 노출됨을 확인. `SIGTERM` 전송 시 `shutdown started` → `collector stopped` → `shutdown complete`가 여전히 수 ms 내로 끝나 재시도 대기 로직 추가가 graceful shutdown 지연을 유발하지 않음을 확인. 실제 429/5xx나 네트워크 단절을 재현하는 재시도 경로 자체는 `historicalWorker.test.ts`의 주입 가능한 fetchKlines/sleep 더블로 검증했다(백오프 지연 값, 같은 페이지 재시도, 영구 오류 즉시 failed, 재시도 대기 중 stop() 즉시 반환, 재시작 후 retrying 상태 재개 포함).
+- (SSE shutdown 보완, `feat/2-sse-shutdown-drain`) 실제 backend(`node dist/index.js`, `PORT=3000`)와 `apps/web`의 실제 Vite dev 서버(포트 5173, `/api`→3000 프록시)를 함께 띄우고 `curl -N http://127.0.0.1:5173/api/events`로 프록시를 거친 SSE 연결을 연 채로 backend에 `SIGTERM` 전송 → 수정 전에는 활성 SSE keep-alive 소켓 때문에 `app.close()`가 끝나지 않아 `shutdown complete` 로그가 찍히지 않았던 것과 달리, 수정 후에는 `shutdown started` → `collector stopped` → `shutdown complete`가 1초 내로 완료됨을 확인. 같은 순간 `curl`(만료 시간 20초로 설정) 프로세스가 타임아웃을 기다리지 않고 즉시 종료됨을 확인해, 서버 종료가 Vite 프록시를 거쳐 실제 클라이언트 연결까지 스트림 종료로 전달됨을 검증했다. Vite 로그에는 프록시 오류가 남지 않았다(연결이 깨끗하게 끝남).
 
 ## UI 검증 결과 (Codex)
 
