@@ -1,6 +1,6 @@
 # 07. 다중 봉 차트와 운영 안정성 개선
 
-- 상태: `in-progress`
+- 상태: `done`
 - 백엔드 담당: Claude
 - UI 담당: Codex
 - 기준 설계: `docs/DESIGN.md`
@@ -47,7 +47,7 @@ GET /api/candles?symbol=BTCUSDT&interval=6h&from=...&to=...&limit=120
 - [x] `/health/live`, `/health/ready` 분리와 CORS origin 설정
 - [x] 전체 백엔드 회귀 테스트와 필수 품질 명령 통과
 
-백엔드 범위는 완료했다. Codex의 UI 작업이 남아 있어 이 문서는 계속 `in-progress`로 유지한다. 검증 결과는 문서 하단 "백엔드 검증 결과" 절 참고.
+백엔드 범위의 구현과 검증 결과는 문서 하단 "백엔드 검증 결과" 절에 기록한다.
 
 클린 아키텍처는 전체 코드를 한 번에 다시 쓰지 않는다. 도메인 규칙이 Fastify, Drizzle, Binance 응답에 의존하지 않게 하고 외부 경계에만 포트를 둔다. 일대일 래퍼와 사용처가 하나뿐인 범용 추상화는 만들지 않는다.
 
@@ -55,13 +55,13 @@ GET /api/candles?symbol=BTCUSDT&interval=6h&from=...&to=...&limit=120
 
 ## UI 작업 — Codex
 
-- [ ] 기간 선택을 `1분 / 6시간 / 일` 봉 주기 선택으로 교체
-- [ ] OHLC 캔들과 거래량 차트 구현
-- [ ] 선택한 봉 주기에 맞춰 최근 봉 테이블 갱신
-- [ ] SSE 1분봉으로 현재 집계 봉을 실시간 갱신하고 REST와 재동기화
-- [ ] 종목 목록을 서버 상태 응답 기준으로 구성
-- [ ] 운영 지표와 봉 주기를 화면에서 명확히 분리
-- [ ] 반응형·접근성·오류 상태와 전체 품질 명령 검증
+- [x] 기간 선택을 `1분 / 6시간 / 일` 봉 주기 선택으로 교체
+- [x] OHLC 캔들과 거래량 차트 구현
+- [x] 선택한 봉 주기에 맞춰 최근 봉 테이블 갱신
+- [x] SSE 1분봉으로 현재 집계 봉을 실시간 갱신하고 REST와 재동기화
+- [x] 종목 목록을 서버 상태 응답 기준으로 구성
+- [x] 운영 지표와 봉 주기를 화면에서 명확히 분리
+- [x] 반응형·접근성·오류 상태와 전체 품질 명령 검증
 
 ## 확장 경계
 
@@ -75,13 +75,11 @@ SQLite에서는 30일 보존과 별도 `VACUUM` 유지보수 정책까지만 다
 - [x] 재시작 누락 구간이 중복 없이 복구된다.
 - [x] 동일 원본이 UTC 기준 1분·6시간·일봉 OHLCV로 정확히 집계된다.
 - [x] 진행 중인 집계 봉과 확정 봉이 구분된다.
-- [ ] 대시보드 선택에 따라 실제 봉 개수와 OHLC가 바뀐다. (Codex 담당, 미착수)
+- [x] 대시보드 선택에 따라 실제 봉 개수와 OHLC가 바뀐다.
 - [x] 운영 완전성은 최근 24시간 원본 1분봉 기준으로 유지된다.
 - [x] 만료 데이터 정리가 실시간 수집을 방해하지 않는다.
 - [x] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`가 통과한다 (workspace 전체 기준).
-- [ ] 완료된 계약과 구조를 `docs/DESIGN.md`, README, `.env.example`에 반영한다.
-      → `README.md`와 `.env.example`은 백엔드 변경분(interval API, config 변수, health 분리)을 이미 반영했다.
-      `docs/DESIGN.md`는 AGENTS.md 작업 생명주기에 따라 **UI 작업까지 전체 완료된 뒤에만** 갱신하므로 아직 미반영이다.
+- [x] 완료된 계약과 구조를 `docs/DESIGN.md`, README, `.env.example`에 반영한다.
 
 ## 백엔드 검증 결과 (Claude)
 
@@ -117,7 +115,15 @@ SQLite에서는 30일 보존과 별도 `VACUUM` 유지보수 정책까지만 다
 
 ### 남은 위험 / 다음 단계
 
-- UI(Codex) 작업이 전혀 시작되지 않았다. 봉 주기 선택, OHLC 캔들 차트, 완전성/봉 주기 UI 분리, SSE 재동기화가 남아 있다.
 - `/health` 단일 경로가 `/health/live`+`/health/ready`로 분리되는 breaking change다. Vite 프록시와 현재 `apps/web` 코드는 영향받지 않지만, 외부 모니터링(uptime check 등)이 `/health`를 직접 호출하고 있다면 갱신이 필요하다.
 - `BACKFILL_HOURS` 환경변수가 `BACKFILL_DAYS`로 대체됐다(breaking rename). 기존 `.env`를 쓰던 배포가 있다면 값을 이관해야 한다.
 - 만료 데이터 정리는 단위 테스트로 배치·yield 동작을 검증했지만, 실제 30일 이상 장기 운영에서의 관찰은 하지 못했다(환경 제약상 장시간 구동 불가).
+
+## UI 검증 결과 (Codex)
+
+- `feat/7-web-timeframes`: 서버 설정 종목, 봉 주기 API, 서버 기준 24시간 완전성과 SSE 재동기화를 연동했다.
+- `feat/7-candlestick-dashboard`: Lightweight Charts 기반 OHLC·거래량 차트와 반응형 UI를 구현했다.
+- 웹 테스트 10개와 lint, typecheck, production build를 통과했다.
+- 실제 Binance 연동에서 BTC/ETH의 1분봉·6시간봉·일봉 전환과 서로 다른 OHLC·테이블을 확인했다.
+- 데스크톱과 390px 모바일에서 확인했으며 모바일 가로 스크롤을 수정했다.
+- 브라우저 콘솔 경고·오류는 없었다.

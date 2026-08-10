@@ -33,10 +33,11 @@ pnpm dev                  # server와 web 개발 서버 동시 실행
 대시보드는 시장 분석보다 수집 파이프라인의 상태 확인을 우선한다.
 
 - 종목별 WebSocket 연결 상태, 데이터 지연, 마지막 확정 봉과 최근 오류
-- 조회 구간(1H/6H/24H)의 확정 봉 완전성과 누락 개수
+- 최근 24시간 원본 1분봉의 확정 봉 완전성과 누락 개수
 - 현재가, 1시간 등락률, 1시간 거래대금
-- REST 초기 조회 이후 SSE로 갱신되는 가격·거래량 차트
-- OHLC, 거래대금, 체결 수와 확정 여부를 보여주는 최근 봉 테이블
+- 1분봉·6시간봉·일봉을 선택할 수 있는 OHLC 캔들·거래량 차트
+- SSE 원본 이벤트와 REST 집계 재동기화로 갱신되는 선택 봉 주기
+- 선택한 봉의 OHLC, 거래대금, 체결 수와 확정 여부를 보여주는 최근 봉 테이블
 - 로딩, 백필 중, 빈 데이터, API 오류와 SSE 재연결 상태
 - 데스크톱과 모바일 반응형 레이아웃, 키보드 포커스와 reduced motion 지원
 
@@ -44,7 +45,7 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 
 ## 명령
 
-루트에서 실행하며 workspace 전체(`apps/server`, `packages/shared`)에 적용된다.
+루트에서 실행하며 workspace 전체(`apps/server`, `apps/web`, `packages/shared`)에 적용된다.
 
 | Command | 설명 |
 | --- | --- |
@@ -91,7 +92,7 @@ Binance 공개 시세 API만 사용하므로 API key는 필요 없다.
 | --- | --- | --- |
 | GET | `/health/live` | 프로세스 생존 확인 (DB 접근 없음) |
 | GET | `/health/ready` | DB 접근 가능 여부까지 확인 |
-| GET | `/api/status` | 종목별 연결 상태, 마지막 이벤트 시각, 지연 시간(`delayMs`) |
+| GET | `/api/status` | 종목별 연결 상태, 지연, 마지막 백필 결과와 최근 24시간 완전성 |
 | GET | `/api/candles?symbol=BTCUSDT&interval=1m&from=&to=&limit=500` | 기간별 봉 조회 (`interval`: `1m`\|`6h`\|`1d`, 기본 `1m`; open_time 오름차순; `limit`은 집계 후 봉 개수에 적용, 기본 500 · 최대 2000) |
 | GET | `/api/summary?symbol=BTCUSDT` | 현재가, 1시간 등락률, 1시간 거래대금 |
 | GET | `/api/events` | `candle`/`status` SSE 스트림 |
@@ -127,7 +128,7 @@ CLAUDE.md                 # Claude Code용 진입 문서
 - WebSocket 버퍼링→백필→flush→live 전환, 미확정→확정 봉 갱신, 재연결 gap-fill, stale 감지 (`apps/server/src/collector/collector.test.ts`)
 - API 쿼리 검증과 SSE 스트림 (`apps/server/src/http/**/*.test.ts`)
 - graceful shutdown 순서 (`apps/server/src/shutdown.test.ts`)
-- 데이터 완전성·표시 포맷과 최근 봉 테이블 (`apps/web/src/**/*.test.ts(x)`)
+- 데이터 완전성·봉 주기 표시, 금융 차트 데이터 변환과 최근 봉 테이블 (`apps/web/src/**/*.test.ts(x)`)
 
 GitHub Actions도 같은 `lint → typecheck → test → build` 순서로 전체 workspace를 검증한다.
 
