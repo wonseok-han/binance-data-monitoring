@@ -43,8 +43,8 @@ cp .env.example .env
 ```dotenv
 PORT=3000
 SYMBOLS=BTCUSDT,ETHUSDT
-BACKFILL_DAYS=30
-RETENTION_DAYS=30
+BACKFILL_DAYS=365
+RETENTION_DAYS=365
 ```
 
 전체 설정과 기본값은 [환경변수](#환경변수)와 [`.env.example`](.env.example)을 참고한다. Binance 공개 시세 API를 사용하므로 API key는 필요 없다.
@@ -110,8 +110,9 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | `BINANCE_REST_URL` | `https://api.binance.com` | Binance REST API base URL |
 | `BINANCE_WS_URL` | `wss://stream.binance.com:9443` | Binance WebSocket base URL |
 | `SYMBOLS` | `BTCUSDT,ETHUSDT` | 수집할 종목 (쉼표 구분, API의 symbol 허용 목록도 이 값으로 결정된다) |
-| `BACKFILL_DAYS` | `30` | 최초 백필 시작 시점 (현재로부터 며칠 전부터), 양의 정수 |
-| `RETENTION_DAYS` | `30` | 1분봉 보존 기간 (이보다 오래된 봉은 정리 작업이 삭제), 양의 정수 |
+| `BACKFILL_DAYS` | `365` | 새 DB가 최종 확보할 전체 과거 기간 (일), 양의 정수. `RETENTION_DAYS`보다 크면 시작을 거부한다 |
+| `BACKFILL_WARMUP_HOURS` | `24` | 실시간 전환 전 우선 채우는 최근 구간 (시간), 양의 정수. 나머지는 백그라운드로 채운다 |
+| `RETENTION_DAYS` | `365` | 1분봉 보존 기간 (이보다 오래된 봉은 정리 작업이 삭제), 양의 정수. `BACKFILL_DAYS`보다 작으면 시작을 거부한다 |
 | `RETENTION_CLEANUP_INTERVAL_HOURS` | `6` | 만료 데이터 정리 작업 실행 주기 (시간), 양의 정수 |
 | `STALE_AFTER_SECONDS` | `10` | 이 시간 동안 이벤트가 없으면 `stale`로 표시하고 재연결 |
 | `RECONNECT_BASE_DELAY_MS` | `1000` | WebSocket 재연결 지수 백오프 시작 지연 (ms) |

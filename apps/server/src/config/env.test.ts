@@ -7,8 +7,9 @@ const baseEnv = {
   BINANCE_REST_URL: 'https://api.binance.com',
   BINANCE_WS_URL: 'wss://stream.binance.com:9443',
   SYMBOLS: 'BTCUSDT,ETHUSDT',
-  BACKFILL_DAYS: '30',
-  RETENTION_DAYS: '30',
+  BACKFILL_DAYS: '365',
+  BACKFILL_WARMUP_HOURS: '24',
+  RETENTION_DAYS: '365',
   STALE_AFTER_SECONDS: '10',
   LOG_LEVEL: 'info',
 };
@@ -18,8 +19,9 @@ describe('loadConfig', () => {
     const config = loadConfig(baseEnv);
 
     expect(config.PORT).toBe(3000);
-    expect(config.BACKFILL_DAYS).toBe(30);
-    expect(config.RETENTION_DAYS).toBe(30);
+    expect(config.BACKFILL_DAYS).toBe(365);
+    expect(config.BACKFILL_WARMUP_HOURS).toBe(24);
+    expect(config.RETENTION_DAYS).toBe(365);
     expect(config.symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
   });
 
@@ -34,8 +36,9 @@ describe('loadConfig', () => {
 
     expect(config.PORT).toBe(3000);
     expect(config.DATABASE_URL).toBe('./data/market.db');
-    expect(config.BACKFILL_DAYS).toBe(30);
-    expect(config.RETENTION_DAYS).toBe(30);
+    expect(config.BACKFILL_DAYS).toBe(365);
+    expect(config.BACKFILL_WARMUP_HOURS).toBe(24);
+    expect(config.RETENTION_DAYS).toBe(365);
     expect(config.RETENTION_CLEANUP_INTERVAL_HOURS).toBe(6);
     expect(config.RECONNECT_BASE_DELAY_MS).toBe(1000);
     expect(config.RECONNECT_MAX_DELAY_MS).toBe(30_000);
@@ -51,6 +54,24 @@ describe('loadConfig', () => {
 
   it('throws when SYMBOLS resolves to an empty list', () => {
     expect(() => loadConfig({ ...baseEnv, SYMBOLS: ' , ,' })).toThrow(/SYMBOLS/);
+  });
+
+  describe('RETENTION_DAYS vs BACKFILL_DAYS', () => {
+    it('throws when RETENTION_DAYS is shorter than BACKFILL_DAYS', () => {
+      expect(() =>
+        loadConfig({ ...baseEnv, BACKFILL_DAYS: '365', RETENTION_DAYS: '30' }),
+      ).toThrow(/RETENTION_DAYS/);
+    });
+
+    it('accepts RETENTION_DAYS equal to BACKFILL_DAYS', () => {
+      const config = loadConfig({ ...baseEnv, BACKFILL_DAYS: '30', RETENTION_DAYS: '30' });
+      expect(config.RETENTION_DAYS).toBe(30);
+    });
+
+    it('accepts RETENTION_DAYS longer than BACKFILL_DAYS', () => {
+      const config = loadConfig({ ...baseEnv, BACKFILL_DAYS: '30', RETENTION_DAYS: '365' });
+      expect(config.RETENTION_DAYS).toBe(365);
+    });
   });
 
   describe('CORS_ORIGIN', () => {

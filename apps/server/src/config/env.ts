@@ -8,8 +8,9 @@ const envSchema = z.object({
   SYMBOLS: z.string().min(1).default('BTCUSDT,ETHUSDT'),
 
   // 백필/보존
-  BACKFILL_DAYS: z.coerce.number().int().positive().default(30),
-  RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+  BACKFILL_DAYS: z.coerce.number().int().positive().default(365),
+  BACKFILL_WARMUP_HOURS: z.coerce.number().int().positive().default(24),
+  RETENTION_DAYS: z.coerce.number().int().positive().default(365),
   RETENTION_CLEANUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(6),
 
   // 수집기 재시도/재연결
@@ -32,6 +33,7 @@ export interface AppConfig {
   BINANCE_REST_URL: string;
   BINANCE_WS_URL: string;
   BACKFILL_DAYS: number;
+  BACKFILL_WARMUP_HOURS: number;
   RETENTION_DAYS: number;
   RETENTION_CLEANUP_INTERVAL_HOURS: number;
   STALE_AFTER_SECONDS: number;
@@ -59,6 +61,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   if (symbols.length === 0) {
     throw new Error('SYMBOLS must contain at least one symbol');
+  }
+
+  if (parsed.RETENTION_DAYS < parsed.BACKFILL_DAYS) {
+    throw new Error('RETENTION_DAYS must be greater than or equal to BACKFILL_DAYS');
   }
 
   const corsOrigin =
