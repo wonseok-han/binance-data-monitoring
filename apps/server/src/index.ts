@@ -7,6 +7,7 @@ import { createBinanceRestClient } from './collector/binanceRest.js';
 import { createWsFactory } from './collector/binanceWs.js';
 import { startCollector } from './collector/collector.js';
 import { createEventBus } from './events/bus.js';
+import { startRetentionCleanup } from './retention/cleanup.js';
 import { createShutdownHandler } from './shutdown.js';
 
 const config = loadConfig();
@@ -43,8 +44,16 @@ const collectors = config.symbols.map((symbol) =>
   }),
 );
 
+const retention = startRetentionCleanup({
+  db: dbHandle.db,
+  symbols: config.symbols,
+  retentionDays: config.RETENTION_DAYS,
+  cleanupIntervalHours: config.RETENTION_CLEANUP_INTERVAL_HOURS,
+  logger: collectorLogger,
+});
+
 const shutdown = createShutdownHandler({
-  collectors,
+  collectors: [...collectors, retention],
   closeApp: () => app.close(),
   closeDb: () => dbHandle.sqlite.close(),
   logger: collectorLogger,

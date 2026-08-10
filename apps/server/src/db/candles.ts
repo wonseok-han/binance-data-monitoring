@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import type { DbHandle } from './client.js';
 import { candles } from './schema.js';
 import type { RawCandle } from '../collector/binanceRest.js';
@@ -109,6 +109,28 @@ export function getCandleAtOrBefore(db: DbHandle['db'], symbol: string, openTime
     .orderBy(desc(candles.openTime))
     .limit(1)
     .get();
+}
+
+/**
+ * Deletes up to `batchSize` candles older than `cutoffOpenTime` for one
+ * symbol and returns how many were removed. Callers loop this (yielding the
+ * event loop between calls) instead of issuing one unbounded DELETE, so a
+ * large backlog never blocks the collector/HTTP server for long.
+ */
+export function deleteExpiredCandlesBatch(
+  db: DbHandle['db'],
+  symbol: string,
+  cutoffOpenTime: number,
+  batchSize: number,
+): number {
+  const result = db.run(sql`
+    DELETE FROM ${candles} WHERE rowid IN (
+      SELECT rowid FROM ${candles}
+      WHERE ${candles.symbol} = ${symbol} AND ${candles.openTime} < ${cutoffOpenTime}
+      LIMIT ${batchSize}
+    )
+  `);
+  return result.changes;
 }
 
 export function sumQuoteVolumeSince(db: DbHandle['db'], symbol: string, sinceOpenTimeInclusive: number): number {
