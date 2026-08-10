@@ -39,7 +39,7 @@ function fakeRepository(rows: Candle[]): CandleRepositoryPort {
 }
 
 describe('createGetCandlesUseCase', () => {
-  it('delegates 1m queries straight to the repository', () => {
+  it('delegates 1m queries to the repository, requesting one extra row to detect hasMore', () => {
     const rows = [candle(0), candle(MINUTE_MS), candle(2 * MINUTE_MS)];
     const repository = fakeRepository(rows);
     const getCandles = createGetCandlesUseCase({ repository, now: () => 3 * MINUTE_MS });
@@ -50,9 +50,41 @@ describe('createGetCandlesUseCase', () => {
       symbol: SYMBOL,
       from: undefined,
       to: undefined,
-      limit: 2,
+      limit: 3, // limit + 1
     });
-    expect(result).toHaveLength(2);
+    expect(result.candles).toHaveLength(2);
+  });
+
+  it('reports hasMore and nextBefore when more 1m data exists further back', () => {
+    const rows = [candle(0), candle(MINUTE_MS), candle(2 * MINUTE_MS)];
+    const repository = fakeRepository(rows);
+    const getCandles = createGetCandlesUseCase({ repository, now: () => 3 * MINUTE_MS });
+
+    const result = getCandles({ symbol: SYMBOL, interval: '1m', limit: 2 });
+
+    expect(result.candles.map((c) => c.openTime)).toEqual([MINUTE_MS, 2 * MINUTE_MS]);
+    expect(result.page).toEqual({ nextBefore: MINUTE_MS - 1, hasMore: true });
+  });
+
+  it('reports hasMore=false and the oldest candle boundary when the full range fits', () => {
+    const rows = [candle(0), candle(MINUTE_MS)];
+    const repository = fakeRepository(rows);
+    const getCandles = createGetCandlesUseCase({ repository, now: () => 2 * MINUTE_MS });
+
+    const result = getCandles({ symbol: SYMBOL, interval: '1m', limit: 5 });
+
+    expect(result.candles).toHaveLength(2);
+    expect(result.page).toEqual({ nextBefore: -1, hasMore: false });
+  });
+
+  it('returns a null nextBefore when there is no data at all', () => {
+    const repository = fakeRepository([]);
+    const getCandles = createGetCandlesUseCase({ repository, now: () => 0 });
+
+    const result = getCandles({ symbol: SYMBOL, interval: '1m', limit: 5 });
+
+    expect(result.candles).toHaveLength(0);
+    expect(result.page).toEqual({ nextBefore: null, hasMore: false });
   });
 
   it('aggregates 6h buckets from the full underlying range and applies limit after aggregation', () => {
@@ -71,8 +103,9 @@ describe('createGetCandlesUseCase', () => {
 
     const result = getCandles({ symbol: SYMBOL, interval: '6h', from: bucket0, to: bucket2 + bucketMs - 1, limit: 2 });
 
-    expect(result.map((b) => b.openTime)).toEqual([bucket1, bucket2]);
-    expect(result.every((b) => b.isClosed)).toBe(true);
+    expect(result.candles.map((b) => b.openTime)).toEqual([bucket1, bucket2]);
+    expect(result.candles.every((b) => b.isClosed)).toBe(true);
+    expect(result.page).toEqual({ nextBefore: bucket1 - 1, hasMore: true }); // bucket0 exists but was trimmed
   });
 
   it('derives a default range from now and limit when from/to are omitted', () => {
@@ -87,6 +120,6 @@ describe('createGetCandlesUseCase', () => {
     const result = getCandles({ symbol: SYMBOL, interval: '1d', limit: 3 });
 
     expect(repository.getOneMinuteCandlesInRange).toHaveBeenCalled();
-    expect(result.length).toBeLessThanOrEqual(3);
+    expect(result.candles.length).toBeLessThanOrEqual(3);
   });
 });

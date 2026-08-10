@@ -23,7 +23,7 @@ export function registerCandlesRoute(app: FastifyInstance, deps: AppDeps): void 
       throw new ApiError(400, 'INVALID_RANGE', 'from must not be greater than to');
     }
 
-    const candles = getCandles({ symbol, interval, from, to, limit });
-    return { symbol, interval, candles };
+    const { candles, page } = getCandles({ symbol, interval, from, to, limit });
+    return { symbol, interval, candles, page };
   });
 }

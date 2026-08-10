@@ -4,10 +4,11 @@ BTCUSDT와 ETHUSDT의 Binance 시세를 수집·복구하고 실시간 운영 �
 
 ## 주요 기능 및 구현
 
-- **실시간 수집과 복구**: Binance 1분봉 WebSocket을 먼저 연결해 이벤트를 버퍼링한 뒤 REST 백필을 수행한다. 최초 실행과 재시작 모두 같은 흐름을 사용하며 `(symbol, open_time)` upsert로 중복을 방지한다.
+- **실시간 수집과 복구**: Binance 1분봉 WebSocket을 먼저 연결해 이벤트를 버퍼링한 뒤, 최근 누락 구간과 `BACKFILL_WARMUP_HOURS`만 우선 REST 백필해 실시간 전환을 지연시키지 않는다. 최초 실행과 재시작 모두 같은 흐름을 사용하며 `(symbol, open_time)` upsert로 중복을 방지한다.
+- **백그라운드 장기 백필**: 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태(cursor)를 `backfill_jobs`에 저장해 재시작 시 이어서 처리하고, HTTP·실시간 수집을 막지 않는다.
 - **안정적인 운영 상태 추적**: 재연결 지수 백오프, 누락 구간 복구, stale 감지, 최근 오류와 데이터 지연을 종목별로 기록한다.
-- **다중 봉 조회**: 저장된 1분봉을 원본으로 유지하고 조회 시 UTC 경계에 맞춰 6시간봉과 일봉으로 집계한다.
-- **REST·SSE 제공**: 캔들, 요약, 수집 상태와 헬스 체크 API를 제공하고, DB 반영이 끝난 이벤트만 SSE로 전달한다.
+- **다중 봉 조회**: 저장된 1분봉을 원본으로 유지하고 조회 시 UTC 경계에 맞춰 6시간봉과 일봉으로 집계하며, 커서 기반 페이지네이션으로 과거 데이터를 이어서 조회한다.
+- **REST·SSE 제공**: 캔들, 요약, 수집 상태와 헬스 체크 API를 제공하고, DB 반영이 끝난 이벤트만 SSE로 전달한다. 확정 1분봉 저장 시 상태 스냅샷도 함께 발행한다.
 - **운영 대시보드**: OHLC 캔들·거래량 차트, 최근 봉, 데이터 완전성, 연결 상태를 실시간으로 표시한다.
 - **데이터 관리**: SQLite와 Drizzle을 사용하며 설정된 보존 기간이 지난 1분봉을 주기적으로 정리한다.
 
@@ -63,11 +64,12 @@ pnpm dev
 서버가 기동되면 다음 순서로 동작한다.
 
 1. 종목별로 Binance WebSocket(`kline_1m`) 구독을 먼저 시작한다.
-2. DB의 마지막 확정 봉을 조회해 REST로 누락 구간을 백필한다 (최초 실행은 `BACKFILL_DAYS`만큼).
-3. 백필 중 버퍼링된 실시간 이벤트를 시간순으로 반영하고 실시간 upsert 모드로 전환한다.
-4. 연결이 끊기면 지수 백오프로 재연결하고, 재연결 시마다 같은 절차로 갭을 채운다.
+2. DB의 마지막 확정 봉을 조회해 REST로 누락 구간을 백필한다 (최초 실행은 `BACKFILL_WARMUP_HOURS`만큼).
+3. 백필 중 버퍼링된 실시간 이벤트를 시간순으로 반영하고 실시간 upsert 모드로 전환한다. 이 시점부터 HTTP API가 정상 응답한다.
+4. 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태는 `backfill_jobs`에 저장되어 재시작해도 이어서 처리된다.
+5. 연결이 끊기면 지수 백오프로 재연결하고, 재연결 시마다 같은 절차로 갭을 채운다.
 
-`pnpm dev`는 `SIGINT`(Ctrl+C)를 받으면 각 종목의 수집기와 REST 서버를 정리한 뒤 종료한다(graceful shutdown).
+`pnpm dev`는 `SIGINT`(Ctrl+C)를 받으면 각 종목의 수집기, 백그라운드 백필 worker(진행 중인 페이지까지 마무리), 정리 작업과 REST 서버를 순서대로 정리한 뒤 종료한다(graceful shutdown).
 
 ## 대시보드 지표
 
@@ -132,23 +134,29 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | --- | --- | --- |
 | GET | `/health/live` | 프로세스 생존 확인 (DB 접근 없음) |
 | GET | `/health/ready` | DB 접근 가능 여부까지 확인 |
-| GET | `/api/status` | 종목별 연결 상태, 지연, 마지막 백필 결과와 최근 24시간 완전성 |
+| GET | `/api/status` | 종목별 연결 상태, 지연, 마지막 백필 결과, 장기 백필 진행률(`historicalBackfill`), 데이터 보유 범위(`coverage`), 최근 24시간 완전성 |
 | GET | `/api/candles?symbol=BTCUSDT&interval=1m&from=&to=&limit=500` | 기간별 봉 조회 (`interval`: `1m`\|`6h`\|`1d`, 기본 `1m`; open_time 오름차순; `limit`은 집계 후 봉 개수에 적용, 기본 500 · 최대 2000) |
 | GET | `/api/summary?symbol=BTCUSDT` | 현재가, 1시간 등락률, 1시간 거래대금 |
 | GET | `/api/events` | `candle`/`status` SSE 스트림 |
 
 `symbol`은 `SYMBOLS` 환경변수로 정해진 허용 목록으로 검증한다. `/api/summary`는 아직 데이터가 없는 종목에 대해 `404 NO_DATA`를 반환한다.
 
+`/api/candles` 응답에는 `page: { nextBefore, hasMore }`가 포함된다. `nextBefore`를 다음 요청의 `to`로 넘기면 더 과거 데이터를 커서 방식으로 이어서 조회할 수 있다. `hasMore`가 `false`이고 `historicalBackfill.status`가 `running`/`pending`이면 아직 그 구간까지 백필이 도달하지 못한 것이며, 데이터가 실제로 없는 것과 다르다.
+
 ## 저장소 구조
 
 ```text
 apps/
   server/                 # 수집기, SQLite 저장소, REST/SSE API (Claude 담당)
-    src/collector/        # Binance REST/WebSocket 연동, 백필, 재연결
+    src/collector/        # Binance REST/WebSocket 연동, 최근 구간 백필, 재연결
+    src/backfill/         # 장기(BACKFILL_DAYS) 백그라운드 백필 worker
     src/aggregation/      # 봉 주기 집계 (domain/application/infrastructure 경계)
+    src/status/           # 상태 스냅샷 조립, 24시간 완전성 계산
+    src/retention/        # 만료 1분봉 정리 작업
     src/db/               # Drizzle 스키마·마이그레이션·리포지토리
     src/http/             # Fastify 라우트, 검증, 에러 포맷
     src/events/           # SSE용 in-process pub/sub
+    src/config/           # 환경변수 로더(env)와 코드 상수(constants)
     drizzle/              # 생성된 SQL 마이그레이션
   web/                    # React 운영 대시보드, REST/SSE 클라이언트와 UI 테스트
 packages/
@@ -165,9 +173,10 @@ CLAUDE.md                 # Claude Code용 진입 문서
 
 - 백필 시작/종료 시각 계산과 재시작 후 이어받기 (`apps/server/src/collector/backfill.test.ts`)
 - REST 재시도/`Retry-After` 처리 (`apps/server/src/collector/binanceRest.test.ts`)
-- WebSocket 버퍼링→백필→flush→live 전환, 미확정→확정 봉 갱신, 재연결 gap-fill, stale 감지 (`apps/server/src/collector/collector.test.ts`)
-- API 쿼리 검증과 SSE 스트림 (`apps/server/src/http/**/*.test.ts`)
-- graceful shutdown 순서 (`apps/server/src/shutdown.test.ts`)
+- WebSocket 버퍼링→백필→flush→live 전환, 미확정→확정 봉 갱신, 재연결 gap-fill, stale 감지, onFirstLive 1회 호출, 확정봉 status SSE (`apps/server/src/collector/collector.test.ts`)
+- 장기 백필 worker의 페이지네이션, 실패 처리, graceful stop과 재시작 재개 (`apps/server/src/backfill/historicalWorker.test.ts`)
+- API 쿼리 검증, candles cursor 페이지네이션(`page.nextBefore`/`hasMore`), SSE 스트림 (`apps/server/src/http/**/*.test.ts`)
+- graceful shutdown 순서와 비동기 stop() 대기 (`apps/server/src/shutdown.test.ts`)
 - 데이터 완전성·봉 주기 표시, 금융 차트 데이터 변환과 최근 봉 테이블 (`apps/web/src/**/*.test.ts(x)`)
 
 GitHub Actions도 같은 `lint → typecheck → test → build` 순서로 전체 workspace를 검증한다.

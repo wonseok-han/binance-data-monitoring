@@ -39,6 +39,38 @@ describe('GET /api/candles', () => {
       start + 3 * MINUTE_MS,
       start + 4 * MINUTE_MS,
     ]);
+    expect(body.page).toEqual({ nextBefore: start + 2 * MINUTE_MS - 1, hasMore: true });
+  });
+
+  it('walks the full history backward via page.nextBefore with no gaps or duplicates', async () => {
+    const start = Date.UTC(2024, 2, 1, 0, 0, 0);
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start, 5));
+
+    const firstPage = await app.inject({ method: 'GET', url: `/api/candles?symbol=${SYMBOL}&limit=3` });
+    const firstBody = firstPage.json();
+    expect(firstBody.page.hasMore).toBe(true);
+
+    const secondPage = await app.inject({
+      method: 'GET',
+      url: `/api/candles?symbol=${SYMBOL}&limit=3&to=${firstBody.page.nextBefore}`,
+    });
+    const secondBody = secondPage.json();
+
+    expect(secondBody.candles.map((c: { openTime: number }) => c.openTime)).toEqual([start, start + MINUTE_MS]);
+    expect(secondBody.page).toEqual({ nextBefore: start - 1, hasMore: false });
+
+    const allOpenTimes = [...secondBody.candles, ...firstBody.candles].map((c: { openTime: number }) => c.openTime);
+    expect(new Set(allOpenTimes).size).toBe(5); // no duplicates across pages
+  });
+
+  it('reports hasMore=false once the full range fits in one page', async () => {
+    const start = Date.UTC(2024, 2, 1, 0, 0, 0);
+    upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, start, 2));
+
+    const response = await app.inject({ method: 'GET', url: `/api/candles?symbol=${SYMBOL}&limit=10` });
+    const body = response.json();
+
+    expect(body.page).toEqual({ nextBefore: start - 1, hasMore: false });
   });
 
   it('filters by the from/to range', async () => {
