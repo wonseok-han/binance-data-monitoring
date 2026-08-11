@@ -14,7 +14,7 @@
 
 - 처음에는 최신 봉 8개를 표시한다.
 - `더보기`를 누르면 이전 봉 8개를 기존 행 아래에 누적한다.
-- 이미 받은 candle을 먼저 사용하고, 로컬 데이터를 모두 표시한 뒤에만 cursor API를 호출한다.
+- 이미 받은 candle을 먼저 사용하고, 로컬 데이터를 모두 표시한 뒤에만 `page.nextBefore`로 다음 페이지를 호출한다.
 - 페이지 번호와 최신 방향 버튼은 제거한다.
 - 종목이나 봉 주기를 바꾸면 최신 8개로 초기화한다.
 
@@ -22,14 +22,14 @@
 
 - 선택 종목의 장기 백필 상태가 `pending`/`running`/`retrying`에서 `completed`로 바뀌면 현재 봉 주기의 최신 candle snapshot을 다시 조회한다.
 - 완료 상태가 반복 전송돼도 같은 완료 전이에 대한 중복 요청은 보내지 않는다.
-- 완료 후 응답은 기존 candle에 병합하지 않고 최신 page snapshot으로 교체하고 cursor도 함께 갱신한다.
+- 완료 후 응답은 기존 candle에 병합하지 않고 최신 page snapshot으로 교체하고 `page.nextBefore`도 함께 갱신한다.
 - 외부에서 실행 중인 SQLite 파일이나 폴더를 삭제하는 상황은 지원 범위에서 제외한다.
 
 ## 작업
 
 - [x] `RECENT RECORDS`를 8개 단위 누적 `더보기`로 변경
-- [x] 로컬 candle 소진 전에는 cursor API를 호출하지 않는 테스트
-- [x] cursor 응답 후 이전 8개가 누적되는 테스트
+- [x] 로컬 candle 소진 전에는 다음 페이지 API를 호출하지 않는 테스트
+- [x] 다음 페이지 응답 후 이전 8개가 누적되는 테스트
 - [x] 백필 완료 전이에 맞춘 candle snapshot 재조회
 - [x] 반복된 완료 이벤트의 중복 요청 방지 테스트
 - [x] README와 `docs/DESIGN.md` 갱신
@@ -50,7 +50,7 @@
 - 6시간봉 초기 120개를 14번의 `더보기`로 모두 펼치는 동안 서버 로그에 추가 `/api/candles` 요청이 없었다.
 - 로컬 120개를 모두 표시한 다음 클릭에서 `/api/candles?symbol=BTCUSDT&interval=6h&limit=120&to=1783835999999`가 정확히 한 번 호출되고 128행으로 늘어남을 확인했다.
 - 브라우저 콘솔 warning/error는 없었다.
-- 백필 `running → completed` 이벤트에서 현재 candle page를 교체하고 cursor를 갱신하는 동작, 같은 완료 이벤트의 중복 요청 방지, 완료 시점의 이전 in-flight snapshot을 공유하지 않는 동작을 자동 테스트로 검증했다.
+- 백필 `running → completed` 이벤트에서 현재 candle page를 교체하고 `page.nextBefore`를 갱신하는 동작, 같은 완료 이벤트의 중복 요청 방지, 완료 시점의 이전 in-flight snapshot을 공유하지 않는 동작을 자동 테스트로 검증했다.
 - workspace 전체 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`가 통과했다. 테스트는 server 126개, shared 4개, web 34개다.
 
 ## 범위 제외

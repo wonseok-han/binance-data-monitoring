@@ -4,10 +4,11 @@ BTCUSDT와 ETHUSDT의 Binance 1분봉을 수집·복구하고 실시간 운영 �
 
 ## Read First
 
-1. `docs/DESIGN.md` — 범위, 아키텍처, 데이터/API 계약, 완료 기준
-2. `docs/tasks/in-progress` 또는 `docs/tasks/todo` — 현재 변경 작업과 체크리스트
-3. `AGENTS.md` — 구현 규칙, 필수 명령, 테스트 우선순위
-4. `README.md` — 사용자를 위한 개발 환경, 실행 방법, 현재 구현 기능
+1. `docs/REQUIREMENTS.md` — 기본 요구사항과 구현 추적
+2. `docs/DESIGN.md` — 범위, 아키텍처, 데이터/API 명세, 완료 기준
+3. `docs/tasks/in-progress` 또는 `docs/tasks/todo` — 현재 변경 작업과 체크리스트
+4. `AGENTS.md` — 구현 규칙, 필수 명령, 테스트 우선순위
+5. `README.md` — 사용자를 위한 개발 환경, 실행 방법, 현재 구현 기능
 
 이 문서들과 다른 구현을 제안해야 한다면 코드를 먼저 바꾸지 말고 이유와 trade-off를 짧게 설명한다.
 
@@ -61,6 +62,7 @@ pnpm build
 - 수집 순서, upsert 키, 시간 경계는 `docs/DESIGN.md`와 동일하게 유지한다.
 - 오류를 삼키지 않는다. 재시도 가능한 오류와 종료해야 할 설정 오류를 구분한다.
 - 테스트를 통과시키기 위해 실제 동작을 약화하거나 네트워크 호출을 기본 테스트에 넣지 않는다.
+- server, migration, 운영 CLI의 환경변수는 `apps/server/.env`를 `config/serverEnv.ts`의 `loadServerEnv`로 읽는다. Vite 설정은 `apps/web/.env`에 두며, 작업 디렉터리에 의존하는 `dotenv/config` import나 루트 공용 `.env`를 추가하지 않는다.
 - 관련 없는 파일의 포맷이나 구조를 변경하지 않는다.
 - Codex 소유인 `apps/web`을 구현하거나 시각 디자인 결정을 대신하지 않는다.
 
@@ -70,6 +72,7 @@ pnpm build
 apps/server   collector + SQLite + REST/SSE
 apps/web      React dashboard
 packages/shared  runtime schemas + shared types
+docs/REQUIREMENTS.md  baseline requirements + traceability
 docs/DESIGN.md   architecture source of truth
 README.md        setup, runbook, current features
 ```

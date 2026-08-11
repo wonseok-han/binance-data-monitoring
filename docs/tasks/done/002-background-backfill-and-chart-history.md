@@ -28,7 +28,7 @@
 
 장기 백필 완료 여부는 `/health/ready`를 막지 않는다. DB 접근과 실시간 수집이 가능하면 ready이며, 과거 데이터 진행률은 별도 상태로 제공한다.
 
-### 영속 백필 작업
+### 재시작 가능한 장기 백필 작업
 
 SQLite에 `backfill_jobs`를 추가한다.
 
@@ -40,10 +40,10 @@ last_error, created_at, updated_at
 ```
 
 - 상태는 `pending`, `running`, `retrying`, `completed`, `failed`를 사용한다.
-- 종목별 작업은 하나씩 실행하고 Binance 페이지 크기 단위로 cursor를 저장한다.
-- 서버 재시작 시 `pending`/`running`/`retrying` 작업을 마지막 cursor부터 재개한다.
+- 종목별 작업은 하나씩 실행하고 Binance 페이지 크기 단위로 다음 백필 처리 위치를 저장한다.
+- 서버 재시작 시 `pending`/`running`/`retrying` 작업을 마지막으로 저장된 진행 위치부터 재개한다.
 - REST/WS 중복은 기존 `(symbol, open_time)` upsert로 안전하게 처리한다.
-- 종료 신호를 받으면 현재 페이지 반영(또는 재시도 대기)을 즉시 중단하고 cursor를 저장한 뒤 worker를 종료한다.
+- 종료 신호를 받으면 현재 페이지 반영(또는 재시도 대기)을 즉시 중단하고 백필 진행 위치를 저장한 뒤 worker를 종료한다.
 - 일시적 오류(네트워크 오류, Binance 429/5xx)는 job을 `failed`로 만들지 않고 `retrying` 상태로 전환해 지수 백오프(`BACKFILL_RETRY_BASE_DELAY_MS` ~ `BACKFILL_RETRY_MAX_DELAY_MS`) 후 같은 페이지를 재시도한다. 연속 재시도 횟수(`retryCount`)와 다음 재시도 시각(`nextRetryAt`)을 함께 저장해 재시작 후에도 남은 대기 시간만 마저 기다리고 이어서 진행한다.
 - 잘못된 요청 등 재시도로 해결되지 않는 영구 오류만 즉시 `failed`로 확정하며, `failed`는 자동 재개하지 않는다.
 - 외부 작업 큐나 메시지 브로커는 사용하지 않는다.
@@ -116,9 +116,9 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - [x] 설정 스키마와 보존 기간 관계 검증
 - [x] `backfill_jobs` 마이그레이션과 저장소 구현
 - [x] 최근 구간 우선 복구와 장기 백필 worker 분리
-- [x] cursor 저장, 재시작 재개, graceful shutdown 테스트
+- [x] 백필 진행 위치 저장, 재시작 재개, graceful shutdown 테스트
 - [x] 백필 진행률·coverage 상태 API와 SSE 제공
-- [x] candles 응답의 cursor page 계약 구현
+- [x] candles 응답의 `page.nextBefore`/`hasMore` 페이지네이션 구현
 - [x] 확정 봉 기준 status SSE 발행
 - [x] 장기 백필 중 API·실시간 수집 비차단 검증
 - [x] 전체 백엔드 회귀 테스트와 필수 품질 명령 통과
@@ -131,7 +131,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 - [x] 30초 전체 polling을 이벤트 중심 동기화와 5분 안전망으로 변경
 - [x] 6시간봉·일봉 재조회를 확정 1분봉 이벤트로 제한
 - [x] SSE 재연결 snapshot 동기화와 동일 요청 중복 방지
-- [x] 차트 왼쪽 경계의 cursor 기반 과거 데이터 로딩
+- [x] 차트 왼쪽 경계의 `page.nextBefore` 기반 과거 데이터 로딩
 - [x] 테이블의 이전 데이터 불러오기
 - [x] 백필 진행률, 데이터 보유 범위와 백필 중 상태 표시
 - [x] 데스크톱·모바일·접근성·오류 상태 검증
@@ -183,7 +183,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 - [x] `BACKFILL_DAYS=365`인 새 DB에서도 HTTP와 실시간 수집이 장기 백필 완료를 기다리지 않는다.
 - [x] 최근 24시간을 먼저 사용할 수 있고 과거 데이터가 최신→과거 방향으로 확장된다.
-- [x] 서버 중단 후 같은 작업이 저장된 cursor부터 재개된다.
+- [x] 서버 중단 후 같은 작업이 DB에 저장된 백필 진행 위치부터 재개된다.
 - [x] idle 상태의 웹이 30초마다 세 API를 호출하지 않는다.
 - [x] 6시간봉·일봉 candle 재조회는 최대 확정 1분봉 주기로 제한된다.
 - [x] 차트가 이전 데이터를 추가해도 중복과 시간 위치 점프가 없다.
@@ -209,12 +209,12 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 | `docs/2-start-background-backfill-task` | 작업 문서를 `todo` → `in-progress`로 이동 |
 | `feat/2-config-warmup-retention-validation` | `BACKFILL_WARMUP_HOURS` 추가, 기본값 365일, `RETENTION_DAYS < BACKFILL_DAYS` 거부 |
 | `feat/2-backfill-jobs-schema-repo` | `backfill_jobs` 테이블/마이그레이션/리포지토리, `getEarliestCandle` |
-| `feat/2-historical-backfill-worker` | 장기 백필 worker(cursor 저장, 재개, graceful stop) |
+| `feat/2-historical-backfill-worker` | 장기 백필 worker(진행 위치 저장, 재개, graceful stop) |
 | `feat/2-status-historical-sse-collector` | `status/status.ts` 통합, `historicalBackfill`/`coverage`, 확정봉 SSE, `onFirstLive`, 비동기 shutdown, index.ts 배선 |
 | `feat/2-candles-cursor-pagination` | candles 응답 `page.nextBefore`/`hasMore` |
 | `docs/2-update-checklist` | 이 문서 갱신 |
 | `feat/2-backfill-job-retry` | 장기 백필 job 영속적 자동 재시도(지수 백오프), `retrying` 상태·`retryCount`/`nextRetryAt` 노출 |
-| `feat/2-event-sync-cursor-history` | 이벤트 중심 동기화, 동일 요청 공유, SSE 재연결 snapshot과 cursor 과거 탐색 |
+| `feat/2-event-sync-cursor-history` | 이벤트 중심 동기화, 동일 요청 공유, SSE 재연결 snapshot과 페이지네이션 과거 탐색 |
 | `feat/2-backfill-operations-ui` | 백필 진행률·coverage·재시도 상태 UI와 반응형·접근성 표시 |
 | `feat/2-sse-shutdown-drain` | SSE 클라이언트 레지스트리 추가, shutdown이 HTTP drain 전에 활성 SSE 연결을 명시적으로 종료 |
 | `feat/2-ui-network-recovery` | 초기 요청 공유, SSE 지수 백오프 재생성, 복구 snapshot과 안전한 오류 처리 |
@@ -224,7 +224,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 ### 자동 검증
 
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — workspace 전체(`packages/shared`, `apps/server`, `apps/web`) 통과.
-- `apps/server` 테스트 120개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles cursor 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown(SSE 클라이언트 종료 순서 포함)·binanceRest 오류 분류·sseRegistry 테스트 포함), `packages/shared` 4개, `apps/web` 26개 모두 통과.
+- `apps/server` 테스트 120개(신규 backfill_jobs 리포지토리·historicalWorker의 페이지네이션/영구·일시적 오류 분기/지수 백오프 재시도/재시도 중 graceful stop/재시작 후 진행·재시도 재개·candles `page.nextBefore` 페이지네이션·collector의 onFirstLive/확정봉 SSE·비동기 shutdown(SSE 클라이언트 종료 순서 포함)·binanceRest 오류 분류·sseRegistry 테스트 포함), `packages/shared` 4개, `apps/web` 26개 모두 통과.
 - 공용 스키마의 `historicalBackfill`, `coverage`, `page`, `retryCount`/`nextRetryAt` 계약을 UI가 직접 사용하며 typecheck/test/build로 함께 검증했다.
 - 네트워크 호출은 fixture와 주입 가능한 clock/REST/WebSocket 더블로 대체했고 기본 테스트 스위트에는 포함하지 않았다.
 - `apps/server/src/http/routes/events.test.ts`에 실제 Fastify 서버·실제 SSE 연결·실제 `createShutdownHandler`를 사용하는 통합 테스트를 추가해, 활성 SSE 연결이 있는 상태에서 shutdown이 타임아웃 없이 끝나고 클라이언트가 실제로 스트림 종료(`done: true`)를 관찰함을 검증했다(회귀 시 테스트가 타임아웃으로 실패한다).
@@ -232,7 +232,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 ### 실서버 스모크 테스트 (Binance 실연동)
 
 - 기본값(`BACKFILL_DAYS=365`, `BACKFILL_WARMUP_HOURS=24`)으로 새 DB에서 BTCUSDT 기동 → `/health/ready`가 0.55초 만에 응답(장기 백필을 기다리지 않음), 3초 뒤 `/api/status`에서 `connectionStatus: live`, `completeness24h: 1440/1440`, `historicalBackfill: { status: running, total: 524160 }`이 이미 진행 중임을 확인.
-- `BACKFILL_DAYS=60`으로 백필이 진행 중인 상태에서 `SIGTERM` 전송 → 진행 중이던 페이지를 마저 처리하고 cursor를 저장한 뒤(`shutdown started` → `collector stopped` → `shutdown complete` 약 100ms) 정상 종료. 재시작 시 **같은 `backfill_jobs` id**로 저장된 cursor부터 이어서 진행됨을 확인(처음부터 다시 시작하지 않음).
+- `BACKFILL_DAYS=60`으로 백필이 진행 중인 상태에서 `SIGTERM` 전송 → 진행 중이던 페이지를 마저 처리하고 백필 진행 위치를 저장한 뒤(`shutdown started` → `collector stopped` → `shutdown complete` 약 100ms) 정상 종료. 재시작 시 **같은 `backfill_jobs` id**로 저장된 진행 위치부터 이어서 처리됨을 확인(처음부터 다시 시작하지 않음).
 - `GET /api/candles?interval=1d`에서 받은 `page.nextBefore`를 다음 요청의 `to`로 넘겨 과거 페이지를 정상적으로 이어받고, 더 이상 데이터가 없을 때 `hasMore: false`와 빈 배열을 확인.
 - 75초간 SSE(`/api/events`)를 구독해 확정 1분봉 저장 시 `event: status`가 정확히 발행됨을 확인(연결 상태 변화가 없어도 발행됨).
 - 잘못된 설정(`RETENTION_DAYS < BACKFILL_DAYS`)이 서버 시작 전 오류로 거부됨을 확인.
@@ -241,7 +241,7 @@ GET /api/candles?symbol=BTCUSDT&interval=1d&to=...&limit=120
 
 ## UI 검증 결과 (Codex)
 
-- UI 테스트 26개에서 5분 안전망, 확정봉 기반 집계 재조회, AbortSignal 소비자 간 동일 URL 요청 공유, SSE 지수 백오프 재생성·재연결 snapshot, 빈·비 JSON 오류 처리, timer·요청 정리, cursor 병합·중복 제거와 차트 논리 위치 보존을 검증했다.
+- UI 테스트 26개에서 5분 안전망, 확정봉 기반 집계 재조회, AbortSignal 소비자 간 동일 URL 요청 공유, SSE 지수 백오프 재생성·재연결 snapshot, 빈·비 JSON 오류 처리, timer·요청 정리, 과거 페이지 병합·중복 제거와 차트 논리 위치 보존을 검증했다.
 - 실제 Binance 연동 화면에서 `to=<nextBefore>` 요청, 백필 진행률과 실제 보유 범위 갱신, 이전 데이터 버튼을 확인했다.
 - 실제 Vite proxy 환경의 최초 로드에서 status, summary, candles와 SSE가 각각 1회만 연결됨을 API 구조화 로그로 확인했다. 활성 SSE 상태에서 API를 종료하면 UI가 `스트림 재연결 중`으로 바뀌고 서버는 `shutdown complete`까지 종료됐다. API 재기동 후 `/api/events`와 세 snapshot 요청이 각각 1회 발생하고 `실시간 연결됨`으로 복귀했다.
 - API가 없는 상태에서 새로고침해도 `Unexpected end of JSON input` 같은 기술적인 문구 없이 사용자용 오류와 `다시 시도`가 표시되며, 브라우저 console 오류는 없었다.

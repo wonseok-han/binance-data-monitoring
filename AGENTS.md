@@ -4,9 +4,10 @@
 
 ## Source of Truth
 
-- 현재 구현의 제품 범위, 기술 선택, 데이터 흐름, API 계약은 `docs/DESIGN.md`를 따른다.
+- 기본 과제 범위와 충족해야 할 항목은 `docs/REQUIREMENTS.md`를 따른다.
+- 현재 구현의 제품 범위, 기술 선택, 데이터 흐름, API 명세는 `docs/DESIGN.md`를 따른다.
 - 아직 구현하지 않은 변경은 `docs/tasks/todo`, 진행 중인 변경은 `docs/tasks/in-progress`, 완료 기록은 `docs/tasks/done`에서 관리한다.
-- 사용자의 현재 요청이 문서보다 우선한다. 설계를 바꾸는 작업은 task 문서에 변경 계약을 먼저 정의하고, 구현 완료 시 `docs/DESIGN.md`에 반영한다.
+- 사용자의 현재 요청이 문서보다 우선한다. 기본 요구사항을 바꾸면 `docs/REQUIREMENTS.md`를, 설계를 바꾸면 task 문서와 완료 후 `docs/DESIGN.md`를 함께 갱신한다.
 - `CLAUDE.md`는 Claude용 진입 문서이며 별도의 제품 요구사항을 정의하지 않는다.
 
 ## Task Lifecycle
@@ -26,7 +27,7 @@
 - 설치, 실행, 빌드, 마이그레이션, 검증 명령
 - 환경변수, 기본값, 별도 설정 방법
 - 사용자에게 제공되는 주요 기능과 실제 구현 방식
-- 공개 API 계약과 저장소의 주요 구조
+- 공개 API 명세와 저장소의 주요 구조
 
 README에는 현재 동작하고 검증된 내용만 기록한다. `todo`나 `in-progress`의 계획을 완료된 기능처럼 미리 작성하지 않으며, 문서의 명령과 설정값은 실제 `package.json`, 코드, `.env.example`과 일치하는지 확인한다.
 
@@ -51,6 +52,7 @@ README에는 현재 동작하고 검증된 내용만 기록한다. `todo`나 `in
 - 시각은 UTC Unix milliseconds, 종목은 대문자, 금액은 decimal 문자열을 기준으로 한다.
 - candle 쓰기는 반드시 `(symbol, open_time)` 기준 upsert로 구현한다.
 - 수집 데이터는 DB 반영 성공 후 클라이언트로 전송한다.
+- 환경 설정은 앱별로 분리한다. 서버 진입점은 `apps/server/.env`를 `config/serverEnv.ts`의 `loadServerEnv`로 읽고, Vite는 `apps/web/.env`를 읽는다. 실행 위치에 의존하는 `dotenv/config` import나 루트 공용 `.env`를 추가하지 않는다.
 - 기존 사용자 변경을 되돌리거나 관련 없는 코드를 정리하지 않는다.
 
 ## Autonomous Local Git Workflow
