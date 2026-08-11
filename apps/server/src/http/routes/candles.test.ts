@@ -4,9 +4,9 @@ import type { DbHandle } from '../../db/client.js';
 import { upsertCandles } from '../../db/candles.js';
 import { createTestDb } from '../../../test/helpers/db.js';
 import { makeCandleSeries } from '../../../test/fixtures/candles.js';
-import { loadConfig } from '../../config/env.js';
+import { loadRuntimeConfig } from '../../config/index.js';
 import { createEventBus } from '../../events/bus.js';
-import { MINUTE_MS } from '../../config/constants.js';
+import { MINUTE_MS } from '../../config/index.js';
 import { createSseRegistry } from '../sseRegistry.js';
 import { buildApp } from '../app.js';
 
@@ -18,7 +18,7 @@ describe('GET /api/candles', () => {
 
   beforeEach(() => {
     dbHandle = createTestDb();
-    app = buildApp({ db: dbHandle, config: loadConfig({}), events: createEventBus(), sse: createSseRegistry() });
+    app = buildApp({ db: dbHandle, config: loadRuntimeConfig({}), events: createEventBus(), sse: createSseRegistry() });
   });
 
   afterEach(async () => {

@@ -8,6 +8,7 @@ import { klineStreamUrl, parseKlineMessage } from './binanceWs.js';
 import type { WsConnection, WsFactory } from './binanceWs.js';
 import type { EventBus } from '../events/bus.js';
 import { buildSymbolStatus } from '../status/status.js';
+import { policy } from '../config/index.js';
 
 export interface CollectorLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -47,8 +48,8 @@ export interface Collector {
 export function startCollector(symbol: string, deps: CollectorDeps): Collector {
   const now = deps.now ?? Date.now;
   const logger = deps.logger ?? noopLogger;
-  const reconnectBaseDelayMs = deps.reconnectBaseDelayMs ?? 1000;
-  const reconnectMaxDelayMs = deps.reconnectMaxDelayMs ?? 30_000;
+  const reconnectBaseDelayMs = deps.reconnectBaseDelayMs ?? policy.collector.reconnectBaseDelayMs;
+  const reconnectMaxDelayMs = deps.reconnectMaxDelayMs ?? policy.collector.reconnectMaxDelayMs;
   const staleCheckIntervalMs = deps.staleCheckIntervalMs ?? 1000;
 
   let stopped = false;

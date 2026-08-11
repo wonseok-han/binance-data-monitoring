@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Candle } from '@binance-monitoring/shared';
 import { aggregateCandles } from './aggregate.js';
 import { INTERVAL_MS } from './interval.js';
-import { MINUTE_MS } from '../../config/constants.js';
+import { MINUTE_MS } from '../../config/index.js';
 
 const SYMBOL = 'BTCUSDT';
 

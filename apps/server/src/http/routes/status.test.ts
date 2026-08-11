@@ -5,10 +5,10 @@ import { upsertCandles } from '../../db/candles.js';
 import { upsertCollectorState } from '../../db/collectorState.js';
 import { createTestDb } from '../../../test/helpers/db.js';
 import { makeCandleSeries } from '../../../test/fixtures/candles.js';
-import { loadConfig } from '../../config/env.js';
+import { loadRuntimeConfig } from '../../config/index.js';
 import { createEventBus } from '../../events/bus.js';
 import { lastCompletedOpenTime } from '../../collector/backfill.js';
-import { MINUTE_MS } from '../../config/constants.js';
+import { MINUTE_MS } from '../../config/index.js';
 import { createBackfillJob } from '../../db/backfillJobs.js';
 import { createSseRegistry } from '../sseRegistry.js';
 import { buildApp } from '../app.js';
@@ -19,7 +19,7 @@ describe('GET /api/status', () => {
 
   beforeEach(() => {
     dbHandle = createTestDb();
-    app = buildApp({ db: dbHandle, config: loadConfig({}), events: createEventBus(), sse: createSseRegistry() });
+    app = buildApp({ db: dbHandle, config: loadRuntimeConfig({}), events: createEventBus(), sse: createSseRegistry() });
   });
 
   afterEach(async () => {

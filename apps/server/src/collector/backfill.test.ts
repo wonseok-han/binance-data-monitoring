@@ -4,7 +4,7 @@ import { countCandles, upsertCandles } from '../db/candles.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { createFixtureFetchKlines, makeCandleSeries } from '../../test/fixtures/candles.js';
 import { computeBackfillRange, lastCompletedOpenTime, runBackfill } from './backfill.js';
-import { HOUR_MS, MINUTE_MS } from '../config/constants.js';
+import { HOUR_MS, MINUTE_MS } from '../config/index.js';
 
 const SYMBOL = 'BTCUSDT';
 

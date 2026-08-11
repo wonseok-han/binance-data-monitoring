@@ -1,8 +1,7 @@
 import { IntervalSchema, type Interval } from '@binance-monitoring/shared';
+import { policy } from '../config/index.js';
 import { ApiError } from './errors.js';
 
-const DEFAULT_LIMIT = 500;
-const MAX_LIMIT = 2000;
 const DEFAULT_INTERVAL: Interval = '1m';
 
 export function parseSymbol(raw: unknown, allowedSymbols: string[]): string {
@@ -19,14 +18,14 @@ export function parseSymbol(raw: unknown, allowedSymbols: string[]): string {
 }
 
 export function parseLimit(raw: unknown): number {
-  if (raw === undefined) return DEFAULT_LIMIT;
+  if (raw === undefined) return policy.api.candlesDefaultLimit;
 
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) {
     throw new ApiError(400, 'INVALID_LIMIT', 'limit must be a positive integer');
   }
-  if (value > MAX_LIMIT) {
-    throw new ApiError(400, 'INVALID_LIMIT', `limit must not exceed ${MAX_LIMIT}`);
+  if (value > policy.api.candlesMaxLimit) {
+    throw new ApiError(400, 'INVALID_LIMIT', `limit must not exceed ${policy.api.candlesMaxLimit}`);
   }
 
   return value;

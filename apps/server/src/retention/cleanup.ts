@@ -1,6 +1,6 @@
 import type { DbHandle } from '../db/client.js';
 import { deleteExpiredCandlesBatch } from '../db/candles.js';
-import { DAY_MS } from '../config/constants.js';
+import { DAY_MS, policy } from '../config/index.js';
 
 export interface RetentionLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -8,8 +8,6 @@ export interface RetentionLogger {
 }
 
 const noopLogger: RetentionLogger = { info: () => {}, error: () => {} };
-
-const DEFAULT_BATCH_SIZE = 1000;
 
 export interface RetentionDeps {
   db: DbHandle['db'];
@@ -38,7 +36,7 @@ export interface RetentionScheduler {
 export function startRetentionCleanup(deps: RetentionDeps): RetentionScheduler {
   const now = deps.now ?? Date.now;
   const logger = deps.logger ?? noopLogger;
-  const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
+  const batchSize = deps.batchSize ?? policy.retention.batchSize;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   let stopped = false;

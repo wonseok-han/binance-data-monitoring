@@ -1,6 +1,6 @@
 import type { DbHandle } from '../db/client.js';
 import { getCandleAtOrBefore, getLatestCandle, sumQuoteVolumeSince } from '../db/candles.js';
-import { HOUR_MS, MINUTE_MS } from '../config/constants.js';
+import { HOUR_MS, MINUTE_MS } from '../config/index.js';
 
 export interface SummaryResult {
   symbol: string;

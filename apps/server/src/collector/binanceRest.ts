@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { policy } from '../config/index.js';
 
 const KlineSchema = z.tuple([
   z.number(), // 시가 시각
@@ -107,8 +108,8 @@ function toRawCandle(symbol: string, kline: z.infer<typeof KlineSchema>): RawCan
 
 export function createBinanceRestClient(options: BinanceRestClientOptions): { fetchKlines: FetchKlines } {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const maxRetries = options.maxRetries ?? 3;
-  const retryDelayMs = options.retryDelayMs ?? 500;
+  const maxRetries = options.maxRetries ?? policy.binanceRest.maxRetries;
+  const retryDelayMs = options.retryDelayMs ?? policy.binanceRest.retryDelayMs;
   const sleepImpl =
     options.sleepImpl ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 

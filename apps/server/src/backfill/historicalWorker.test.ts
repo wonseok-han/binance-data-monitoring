@@ -4,7 +4,7 @@ import { countCandles, getEarliestCandle, upsertCandles } from '../db/candles.js
 import { createBackfillJob, getLatestBackfillJob, updateBackfillJobProgress } from '../db/backfillJobs.js';
 import { createTestDb } from '../../test/helpers/db.js';
 import { createFixtureFetchKlines, makeCandleSeries } from '../../test/fixtures/candles.js';
-import { DAY_MS, MINUTE_MS } from '../config/constants.js';
+import { DAY_MS, MINUTE_MS } from '../config/index.js';
 import { BinanceRestError } from '../collector/binanceRest.js';
 import { startHistoricalBackfillWorker } from './historicalWorker.js';
 

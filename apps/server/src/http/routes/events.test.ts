@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbHandle } from '../../db/client.js';
 import { createTestDb } from '../../../test/helpers/db.js';
-import { loadConfig } from '../../config/env.js';
+import { loadRuntimeConfig } from '../../config/index.js';
 import { createEventBus, type EventBus } from '../../events/bus.js';
 import { createSseRegistry, type SseRegistry } from '../sseRegistry.js';
 import { createShutdownHandler } from '../../shutdown.js';
@@ -19,7 +19,7 @@ describe('GET /api/events (SSE)', () => {
     dbHandle = createTestDb();
     events = createEventBus();
     sse = createSseRegistry();
-    app = buildApp({ db: dbHandle, config: loadConfig({}), events, sse });
+    app = buildApp({ db: dbHandle, config: loadRuntimeConfig({}), events, sse });
     baseUrl = await app.listen({ port: 0, host: '127.0.0.1' });
   });
 

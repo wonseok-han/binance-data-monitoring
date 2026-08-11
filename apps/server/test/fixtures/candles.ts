@@ -1,5 +1,5 @@
 import type { RawCandle } from '../../src/collector/binanceRest.js';
-import { MINUTE_MS } from '../../src/config/constants.js';
+import { MINUTE_MS } from '../../src/config/index.js';
 
 export function makeCandle(symbol: string, openTime: number, overrides: Partial<RawCandle> = {}): RawCandle {
   return {

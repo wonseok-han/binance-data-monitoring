@@ -1,5 +1,5 @@
 import type { Interval } from '@binance-monitoring/shared';
-import { DAY_MS, HOUR_MS, MINUTE_MS } from '../../config/constants.js';
+import { DAY_MS, HOUR_MS, MINUTE_MS } from '../../config/index.js';
 
 export type { Interval };
 

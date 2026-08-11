@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import type { DbHandle } from '../db/client.js';
-import type { AppConfig } from '../config/env.js';
+import type { RuntimeConfig } from '../config/index.js';
 import type { EventBus } from '../events/bus.js';
 import type { SseRegistry } from './sseRegistry.js';
 import { ApiError, sendApiError } from './errors.js';
@@ -12,7 +12,7 @@ import { registerEventsRoute } from './routes/events.js';
 
 export interface AppDeps {
   db: DbHandle;
-  config: AppConfig;
+  config: RuntimeConfig;
   events: EventBus;
   sse: SseRegistry;
 }

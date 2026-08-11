@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../app.js';
+import { policy } from '../../config/index.js';
 
 /** docs/DESIGN.md 7절에 따른 `candle`/`status` 이벤트 SSE 스트림. */
 export function registerEventsRoute(app: FastifyInstance, deps: AppDeps): void {
@@ -22,7 +23,7 @@ export function registerEventsRoute(app: FastifyInstance, deps: AppDeps): void {
 
     const heartbeat = setInterval(() => {
       reply.raw.write(': heartbeat\n\n');
-    }, deps.config.SSE_HEARTBEAT_MS);
+    }, policy.sse.heartbeatMs);
 
     request.raw.on('close', () => {
       clearInterval(heartbeat);

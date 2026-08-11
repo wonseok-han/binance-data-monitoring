@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { ApiError } from '../errors.js';
 import { parseInterval, parseLimit, parseSymbol, parseTimestamp } from '../validation.js';
 import type { AppDeps } from '../app.js';
+import { policy } from '../../config/index.js';
 import { createGetCandlesUseCase } from '../../aggregation/application/getCandles.js';
 import { createDrizzleCandleRepository } from '../../aggregation/infrastructure/drizzleCandleRepository.js';
 
@@ -13,7 +14,7 @@ export function registerCandlesRoute(app: FastifyInstance, deps: AppDeps): void 
 
   app.get('/api/candles', async (request) => {
     const query = request.query as Record<string, unknown>;
-    const symbol = parseSymbol(query.symbol, deps.config.symbols);
+    const symbol = parseSymbol(query.symbol, policy.symbols);
     const interval = parseInterval(query.interval);
     const limit = parseLimit(query.limit);
     const from = parseTimestamp(query.from, 'from');

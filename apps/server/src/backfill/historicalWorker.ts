@@ -4,7 +4,7 @@ import { createBackfillJob, getLatestBackfillJob, updateBackfillJobProgress } fr
 import type { FetchKlines } from '../collector/binanceRest.js';
 import { isRetryableBinanceError } from '../collector/binanceRest.js';
 import { lastCompletedOpenTime } from '../collector/backfill.js';
-import { DAY_MS, MINUTE_MS } from '../config/constants.js';
+import { DAY_MS, MINUTE_MS, policy } from '../config/index.js';
 
 export interface HistoricalBackfillLogger {
   info: (msg: string, meta?: Record<string, unknown>) => void;
@@ -12,10 +12,6 @@ export interface HistoricalBackfillLogger {
 }
 
 const noopLogger: HistoricalBackfillLogger = { info: () => {}, error: () => {} };
-const DEFAULT_PAGE_SIZE = 1000;
-const DEFAULT_INTER_PAGE_DELAY_MS = 100;
-const DEFAULT_RETRY_BASE_DELAY_MS = 1000;
-const DEFAULT_RETRY_MAX_DELAY_MS = 300_000;
 
 export interface HistoricalBackfillDeps {
   db: DbHandle['db'];
@@ -71,10 +67,10 @@ interface ResumableJob {
 export function startHistoricalBackfillWorker(symbol: string, deps: HistoricalBackfillDeps): HistoricalBackfillWorker {
   const now = deps.now ?? Date.now;
   const logger = deps.logger ?? noopLogger;
-  const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
-  const interPageDelayMs = deps.interPageDelayMs ?? DEFAULT_INTER_PAGE_DELAY_MS;
-  const retryBaseDelayMs = deps.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
-  const retryMaxDelayMs = deps.retryMaxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS;
+  const pageSize = deps.pageSize ?? policy.backfill.pageSize;
+  const interPageDelayMs = deps.interPageDelayMs ?? policy.backfill.interPageDelayMs;
+  const retryBaseDelayMs = deps.retryBaseDelayMs ?? policy.backfill.retryBaseDelayMs;
+  const retryMaxDelayMs = deps.retryMaxDelayMs ?? policy.backfill.retryMaxDelayMs;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   let stopped = false;

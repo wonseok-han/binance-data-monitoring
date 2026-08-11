@@ -39,16 +39,15 @@ pnpm install
 cp .env.example .env
 ```
 
-기본값으로 바로 실행할 수 있다. 수집 종목, 최초 백필 기간 또는 포트를 바꾸려면 `.env`를 수정한다. 예를 들어 다음과 같이 설정할 수 있다.
+기본값으로 바로 실행할 수 있다. 포트, DB 경로, Binance endpoint, CORS, 로그 레벨처럼 배포 환경마다 달라지는 값만 `.env`에서 조정한다. 예를 들어 다음과 같이 설정할 수 있다.
 
 ```dotenv
-PORT=3000
-SYMBOLS=BTCUSDT,ETHUSDT
-BACKFILL_DAYS=365
-RETENTION_DAYS=365
+PORT=4000
+DATABASE_URL=./data/market.db
+CORS_ORIGIN=https://dashboard.example.com
 ```
 
-전체 설정과 기본값은 [환경변수](#환경변수)와 [`.env.example`](.env.example)을 참고한다. Binance 공개 시세 API를 사용하므로 API key는 필요 없다.
+수집 종목, 백필·보존 기간, 재시도·재연결 정책처럼 배포 환경과 무관한 제품 정책은 환경변수가 아니라 [`apps/server/src/config/policy.ts`](apps/server/src/config/policy.ts)에서 고정값으로 관리한다. 값을 바꾸려면 이 파일을 수정하고 다시 빌드·배포한다(현재 기본값은 [제품 정책](#제품-정책)을 참고). 전체 환경변수와 기본값은 [환경변수](#환경변수)와 [`.env.example`](.env.example)을 참고한다. Binance 공개 시세 API를 사용하므로 API key는 필요 없다.
 
 ### 3. 데이터베이스 준비 및 개발 서버 실행
 
@@ -105,7 +104,7 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 
 ## 환경변수
 
-`.env.example`을 복사해 `.env`를 만든다. 값을 비워두면 아래 기본값이 적용된다.
+`.env.example`을 복사해 `.env`를 만든다. 값을 비워두면 아래 기본값이 적용된다. 여기에는 배포 환경마다 달라질 수 있는 인프라 설정만 있다(`apps/server/src/config/runtime.ts`). 수집 종목이나 백필·보존 기간 같은 제품 정책은 [제품 정책](#제품-정책)을 참고한다.
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
@@ -113,22 +112,35 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | `DATABASE_URL` | `./data/market.db` | SQLite 파일 경로 (`apps/server` 기준 상대경로) |
 | `BINANCE_REST_URL` | `https://api.binance.com` | Binance REST API base URL |
 | `BINANCE_WS_URL` | `wss://stream.binance.com:9443` | Binance WebSocket base URL |
-| `SYMBOLS` | `BTCUSDT,ETHUSDT` | 수집할 종목 (쉼표 구분, API의 symbol 허용 목록도 이 값으로 결정된다) |
-| `BACKFILL_DAYS` | `365` | 새 DB가 최종 확보할 전체 과거 기간 (일), 양의 정수. `RETENTION_DAYS`보다 크면 시작을 거부한다 |
-| `BACKFILL_WARMUP_HOURS` | `24` | 실시간 전환 전 우선 채우는 최근 구간 (시간), 양의 정수. 나머지는 백그라운드로 채운다 |
-| `BACKFILL_RETRY_BASE_DELAY_MS` | `1000` | 백그라운드 백필 job이 일시적 오류(네트워크 오류, Binance 429/5xx) 후 재시도하는 지수 백오프 시작 지연 (ms) |
-| `BACKFILL_RETRY_MAX_DELAY_MS` | `300000` | 위 지수 백오프의 최대 지연 상한 (ms) |
-| `RETENTION_DAYS` | `365` | 1분봉 보존 기간 (이보다 오래된 봉은 정리 작업이 삭제), 양의 정수. `BACKFILL_DAYS`보다 작으면 시작을 거부한다 |
-| `RETENTION_CLEANUP_INTERVAL_HOURS` | `6` | 만료 데이터 정리 작업 실행 주기 (시간), 양의 정수 |
-| `STALE_AFTER_SECONDS` | `10` | 이 시간 동안 이벤트가 없으면 `stale`로 표시하고 재연결 |
-| `RECONNECT_BASE_DELAY_MS` | `1000` | WebSocket 재연결 지수 백오프 시작 지연 (ms) |
-| `RECONNECT_MAX_DELAY_MS` | `30000` | WebSocket 재연결 지수 백오프 최대 지연 (ms) |
-| `BINANCE_REST_MAX_RETRIES` | `3` | REST 요청이 재시도 가능한 오류일 때 최대 재시도 횟수 (0 이상) |
-| `BINANCE_REST_RETRY_DELAY_MS` | `500` | REST 재시도 기본 지연 (ms, `Retry-After` 없을 때 시도마다 지수 증가) |
-| `SSE_HEARTBEAT_MS` | `15000` | `/api/events` heartbeat 주기 (ms) |
 | `CORS_ORIGIN` | `*` | 허용 CORS origin. `*` 또는 쉼표로 구분한 origin 목록 |
 | `LOG_LEVEL` | `info` | pino 로그 레벨 |
 | `VITE_API_BASE_URL` | 빈 값 | web을 분리 배포할 때 사용할 API base URL |
+
+## 제품 정책
+
+수집 종목, 백필·보존 기간, 재시도·재연결 정책, API limit과 SSE heartbeat는 배포 환경에 따라 달라지지 않는 고정값이라 [`apps/server/src/config/policy.ts`](apps/server/src/config/policy.ts)의 코드 상수로 관리한다. 값을 바꾸려면 이 파일을 수정하고 다시 빌드·배포한다.
+
+| 정책 | 기본값 | 설명 |
+| --- | --- | --- |
+| `symbols` | `BTCUSDT,ETHUSDT` | 수집할 종목. API의 symbol 허용 목록도 이 값으로 결정된다 |
+| `backfill.days` | `365` | 새 DB가 최종 확보할 전체 과거 기간 (일). `retention.days`보다 크면 시작을 거부한다 |
+| `backfill.warmupHours` | `24` | 실시간 전환 전 우선 채우는 최근 구간 (시간). 나머지는 백그라운드로 채운다 |
+| `backfill.pageSize` | `1000` | 장기 백필 한 페이지에 조회할 Binance kline 개수 |
+| `backfill.interPageDelayMs` | `100` | 장기 백필 페이지 사이의 지연 (ms) |
+| `backfill.retryBaseDelayMs` | `1000` | 일시적 오류(네트워크 오류, Binance 429/5xx) 재시도 지수 백오프 시작 지연 (ms) |
+| `backfill.retryMaxDelayMs` | `300000` | 위 지수 백오프의 최대 지연 상한 (ms) |
+| `backfill.maxRetries` | `12` | 연속 재시도가 이 횟수를 넘으면 job을 영구 `failed`로 전환 |
+| `retention.days` | `365` | 1분봉 보존 기간 (이보다 오래된 봉은 정리 작업이 삭제). `backfill.days`보다 작으면 시작을 거부한다 |
+| `retention.cleanupIntervalHours` | `6` | 만료 데이터 정리 작업 실행 주기 (시간) |
+| `retention.batchSize` | `1000` | 정리 작업 한 번에 삭제할 배치 크기 |
+| `collector.staleAfterSeconds` | `10` | 이 시간 동안 이벤트가 없으면 `stale`로 표시하고 재연결 |
+| `collector.reconnectBaseDelayMs` | `1000` | WebSocket 재연결 지수 백오프 시작 지연 (ms) |
+| `collector.reconnectMaxDelayMs` | `30000` | WebSocket 재연결 지수 백오프 최대 지연 (ms) |
+| `binanceRest.maxRetries` | `3` | REST 요청이 재시도 가능한 오류일 때 최대 재시도 횟수 |
+| `binanceRest.retryDelayMs` | `500` | REST 재시도 기본 지연 (ms, `Retry-After` 없을 때 시도마다 지수 증가) |
+| `api.candlesDefaultLimit` | `500` | `/api/candles` limit 기본값 |
+| `api.candlesMaxLimit` | `2000` | `/api/candles` limit 최대값 |
+| `sse.heartbeatMs` | `15000` | `/api/events` heartbeat 주기 (ms) |
 
 ## API
 
@@ -143,7 +155,7 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | GET | `/api/summary?symbol=BTCUSDT` | 현재가, 1시간 등락률, 1시간 거래대금 |
 | GET | `/api/events` | `candle`/`status` SSE 스트림 |
 
-`symbol`은 `SYMBOLS` 환경변수로 정해진 허용 목록으로 검증한다. `/api/summary`는 아직 데이터가 없는 종목에 대해 `404 NO_DATA`를 반환한다.
+`symbol`은 [제품 정책](#제품-정책) `symbols`로 정해진 허용 목록으로 검증한다. `/api/summary`는 아직 데이터가 없는 종목에 대해 `404 NO_DATA`를 반환한다.
 
 `/api/candles` 응답에는 `page: { nextBefore, hasMore }`가 포함된다. `nextBefore`를 다음 요청의 `to`로 넘기면 더 과거 데이터를 커서 방식으로 이어서 조회할 수 있다. `hasMore`가 `false`이고 `historicalBackfill.status`가 `running`/`pending`/`retrying`이면 아직 그 구간까지 백필이 도달하지 못한 것이며, 데이터가 실제로 없는 것과 다르다.
 
@@ -162,7 +174,7 @@ apps/
     src/db/               # Drizzle 스키마·마이그레이션·리포지토리
     src/http/             # Fastify 라우트, 검증, 에러 포맷
     src/events/           # SSE용 in-process pub/sub
-    src/config/           # 환경변수 로더(env)와 코드 상수(constants)
+    src/config/           # runtime(배포 환경변수), policy(고정 제품 정책), time(시간 상수); index.ts로만 노출
     drizzle/              # 생성된 SQL 마이그레이션
   web/                    # React 운영 대시보드, REST/SSE 클라이언트와 UI 테스트
 packages/

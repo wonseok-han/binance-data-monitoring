@@ -3,11 +3,12 @@ import { buildSummary } from '../summary.js';
 import { ApiError } from '../errors.js';
 import { parseSymbol } from '../validation.js';
 import type { AppDeps } from '../app.js';
+import { policy } from '../../config/index.js';
 
 export function registerSummaryRoute(app: FastifyInstance, deps: AppDeps): void {
   app.get('/api/summary', async (request) => {
     const query = request.query as Record<string, unknown>;
-    const symbol = parseSymbol(query.symbol, deps.config.symbols);
+    const symbol = parseSymbol(query.symbol, policy.symbols);
 
     const summary = buildSummary(deps.db.db, symbol);
     if (!summary) {

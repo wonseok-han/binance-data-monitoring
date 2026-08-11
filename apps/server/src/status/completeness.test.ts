@@ -5,7 +5,7 @@ import { createTestDb } from '../../test/helpers/db.js';
 import { makeCandleSeries } from '../../test/fixtures/candles.js';
 import { lastCompletedOpenTime } from '../collector/backfill.js';
 import { computeCompleteness24h, EXPECTED_24H_CANDLES } from './completeness.js';
-import { MINUTE_MS } from '../config/constants.js';
+import { MINUTE_MS } from '../config/index.js';
 
 const SYMBOL = 'BTCUSDT';
 const NOW = Date.UTC(2024, 2, 2, 0, 0, 37, 123);

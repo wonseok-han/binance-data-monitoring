@@ -1,9 +1,7 @@
 import type { DbHandle } from '../db/client.js';
 import { getLastClosedCandle, upsertCandles } from '../db/candles.js';
 import type { FetchKlines } from './binanceRest.js';
-import { MINUTE_MS } from '../config/constants.js';
-
-const DEFAULT_PAGE_SIZE = 1000;
+import { MINUTE_MS, policy } from '../config/index.js';
 
 export interface BackfillRange {
   startTime: number;
@@ -54,7 +52,7 @@ export async function runBackfill(
   const range = computeBackfillRange(deps.db, symbol, backfillHours, now);
   if (!range) return 0;
 
-  const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
+  const pageSize = deps.pageSize ?? policy.backfill.pageSize;
   const endTimeExclusive = range.endTime + MINUTE_MS;
 
   let cursor = range.startTime;

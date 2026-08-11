@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { loadConfig } from './config/env.js';
+import { assertPolicyInvariants, loadRuntimeConfig, policy } from './config/index.js';
 import { createDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { buildApp } from './http/app.js';
@@ -14,7 +14,9 @@ import { startRetentionCleanup } from './retention/cleanup.js';
 import { buildSymbolStatus } from './status/status.js';
 import { createShutdownHandler } from './shutdown.js';
 
-const config = loadConfig();
+assertPolicyInvariants();
+
+const config = loadRuntimeConfig();
 const dbHandle = createDb(config.DATABASE_URL);
 runMigrations(dbHandle);
 
@@ -22,11 +24,7 @@ const events = createEventBus();
 const sse = createSseRegistry();
 const app = buildApp({ db: dbHandle, config, events, sse });
 
-const restClient = createBinanceRestClient({
-  baseUrl: config.BINANCE_REST_URL,
-  maxRetries: config.BINANCE_REST_MAX_RETRIES,
-  retryDelayMs: config.BINANCE_REST_RETRY_DELAY_MS,
-});
+const restClient = createBinanceRestClient({ baseUrl: config.BINANCE_REST_URL });
 const wsFactory = createWsFactory();
 
 const collectorLogger = {
@@ -39,16 +37,14 @@ const collectorLogger = {
 // 스냅샷 복사 없이 이 배열 자체를 참조해야 한다.
 const historicalWorkers: HistoricalBackfillWorker[] = [];
 
-const collectors = config.symbols.map((symbol) =>
+const collectors = policy.symbols.map((symbol) =>
   startCollector(symbol, {
     db: dbHandle.db,
     fetchKlines: restClient.fetchKlines,
     wsFactory,
     wsBaseUrl: config.BINANCE_WS_URL,
-    backfillHours: config.BACKFILL_WARMUP_HOURS,
-    staleAfterSeconds: config.STALE_AFTER_SECONDS,
-    reconnectBaseDelayMs: config.RECONNECT_BASE_DELAY_MS,
-    reconnectMaxDelayMs: config.RECONNECT_MAX_DELAY_MS,
+    backfillHours: policy.backfill.warmupHours,
+    staleAfterSeconds: policy.collector.staleAfterSeconds,
     events,
     logger: collectorLogger,
     onFirstLive: () => {
@@ -56,9 +52,7 @@ const collectors = config.symbols.map((symbol) =>
         startHistoricalBackfillWorker(symbol, {
           db: dbHandle.db,
           fetchKlines: restClient.fetchKlines,
-          backfillDays: config.BACKFILL_DAYS,
-          retryBaseDelayMs: config.BACKFILL_RETRY_BASE_DELAY_MS,
-          retryMaxDelayMs: config.BACKFILL_RETRY_MAX_DELAY_MS,
+          backfillDays: policy.backfill.days,
           logger: collectorLogger,
           onProgress: () => {
             events.emitStatus(symbol, buildSymbolStatus(dbHandle.db, symbol, Date.now()));
@@ -71,9 +65,9 @@ const collectors = config.symbols.map((symbol) =>
 
 const retention = startRetentionCleanup({
   db: dbHandle.db,
-  symbols: config.symbols,
-  retentionDays: config.RETENTION_DAYS,
-  cleanupIntervalHours: config.RETENTION_CLEANUP_INTERVAL_HOURS,
+  symbols: policy.symbols,
+  retentionDays: policy.retention.days,
+  cleanupIntervalHours: policy.retention.cleanupIntervalHours,
   logger: collectorLogger,
 });
 

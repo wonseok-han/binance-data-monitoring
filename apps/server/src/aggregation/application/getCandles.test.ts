@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Candle } from '@binance-monitoring/shared';
 import type { CandleRepositoryPort, RecentOneMinuteCandlesQuery } from '../domain/ports.js';
 import { INTERVAL_MS } from '../domain/interval.js';
-import { MINUTE_MS } from '../../config/constants.js';
+import { MINUTE_MS } from '../../config/index.js';
 import { createGetCandlesUseCase } from './getCandles.js';
 
 const SYMBOL = 'BTCUSDT';
