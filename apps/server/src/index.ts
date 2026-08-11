@@ -1,5 +1,4 @@
-import 'dotenv/config';
-import { assertPolicyInvariants, loadRuntimeConfig, policy } from './config/index.js';
+import { assertPolicyInvariants, loadRuntimeConfig, loadServerEnv, policy } from './config/index.js';
 import { createDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { buildApp } from './http/app.js';
@@ -15,6 +14,7 @@ import { startRetentionCleanup } from './retention/cleanup.js';
 import { buildSymbolStatus } from './status/status.js';
 import { createShutdownHandler } from './shutdown.js';
 
+loadServerEnv();
 assertPolicyInvariants();
 
 const config = loadRuntimeConfig();

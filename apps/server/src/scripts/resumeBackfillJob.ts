@@ -1,5 +1,4 @@
-import 'dotenv/config';
-import { loadRuntimeConfig } from '../config/index.js';
+import { loadRuntimeConfig, loadServerEnv } from '../config/index.js';
 import { createDb } from '../db/client.js';
 import { resumeFailedBackfillJob } from '../db/backfillJobs.js';
 
@@ -10,6 +9,7 @@ if (!symbol) {
   process.exit(1);
 }
 
+loadServerEnv();
 const config = loadRuntimeConfig();
 const dbHandle = createDb(config.DATABASE_URL);
 
