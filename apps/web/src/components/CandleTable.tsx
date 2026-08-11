@@ -21,25 +21,22 @@ export function CandleTable({
   onLoadPrevious,
   backfillInProgress = false,
 }: CandleTableProps) {
-  const [pageIndex, setPageIndex] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
   const [requestingPrevious, setRequestingPrevious] = useState(false);
-  const pageEnd = Math.max(0, candles.length - pageIndex * ROWS_PER_PAGE);
-  const pageStart = Math.max(0, pageEnd - ROWS_PER_PAGE);
-  const rows = candles.slice(pageStart, pageEnd).reverse();
-  const hasOlderLocal = pageStart > 0;
-  const hasNewer = pageIndex > 0;
-  const canGoOlder = hasOlderLocal || canLoadPrevious;
+  const rows = candles.slice(-visibleCount).reverse();
+  const hasOlderLocal = candles.length > visibleCount;
+  const canShowMore = hasOlderLocal || canLoadPrevious;
   const isLoadingPrevious = loadingPrevious || requestingPrevious;
 
-  const showOlder = async () => {
+  const showMore = async () => {
     if (hasOlderLocal) {
-      setPageIndex((current) => current + 1);
+      setVisibleCount((current) => current + ROWS_PER_PAGE);
       return;
     }
     if (!canLoadPrevious || !onLoadPrevious || isLoadingPrevious) return;
     setRequestingPrevious(true);
     try {
-      if (await onLoadPrevious()) setPageIndex((current) => current + 1);
+      if (await onLoadPrevious()) setVisibleCount((current) => current + ROWS_PER_PAGE);
     } finally {
       setRequestingPrevious(false);
     }
@@ -94,21 +91,17 @@ export function CandleTable({
         </tbody>
         </table>
       </div>
-      {(canGoOlder || hasNewer || backfillInProgress) && onLoadPrevious ? (
+      {(canShowMore || backfillInProgress) && onLoadPrevious ? (
         <div className="table-pagination">
-          <button type="button" disabled={!hasNewer} onClick={() => setPageIndex((current) => current - 1)}>
-            최신 8개
-          </button>
-          <span>{pageIndex + 1}페이지</span>
           <button
             type="button"
-            disabled={!canGoOlder || isLoadingPrevious}
-            onClick={() => void showOlder()}
+            disabled={!canShowMore || isLoadingPrevious}
+            onClick={() => void showMore()}
           >
             {isLoadingPrevious
-              ? '이전 기록 불러오는 중'
-              : canGoOlder
-                ? '이전 8개'
+              ? '불러오는 중'
+              : canShowMore
+                ? '더보기'
                 : '과거 데이터 백필 중'}
           </button>
         </div>

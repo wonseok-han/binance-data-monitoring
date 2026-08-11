@@ -50,8 +50,19 @@ export function useMarketDashboard() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectionRef = useRef({ symbol, interval });
+  const completedBackfillRef = useRef(new Map<string, string>());
   const loadingPreviousRef = useRef(false);
   const reconnectControllerRef = useRef<AbortController | null>(null);
+
+  const replaceStatuses = useCallback((nextStatuses: SymbolStatus[]) => {
+    for (const status of nextStatuses) {
+      const backfill = status.historicalBackfill;
+      if (backfill?.status === 'completed' && !completedBackfillRef.current.has(status.symbol)) {
+        completedBackfillRef.current.set(status.symbol, `${backfill.from}:${backfill.to}`);
+      }
+    }
+    setStatuses(nextStatuses);
+  }, []);
 
   useEffect(() => {
     reconnectControllerRef.current?.abort();
@@ -62,7 +73,7 @@ export function useMarketDashboard() {
   const loadConfiguredSymbols = useCallback(async (signal?: AbortSignal) => {
     try {
       const response = await getStatus(signal);
-      setStatuses(response.symbols);
+      replaceStatuses(response.symbols);
       setSymbol((current) =>
         response.symbols.some((status) => status.symbol === current)
           ? current
@@ -79,7 +90,7 @@ export function useMarketDashboard() {
       setRequestState('error');
       setError(loadError instanceof Error ? loadError.message : '종목 정보를 불러오지 못했습니다.');
     }
-  }, []);
+  }, [replaceStatuses]);
 
   const loadMarket = useCallback(
     async (signal?: AbortSignal, showLoading = true) => {
@@ -170,6 +181,36 @@ export function useMarketDashboard() {
       onStatus: (event) => {
         setLastUpdatedAt(Date.now());
         setStatuses((current) => mergeStatus(current, event.status));
+
+        const backfill = event.status.historicalBackfill;
+        const completionKey = backfill == null ? null : `${backfill.from}:${backfill.to}`;
+        const completedNow =
+          backfill?.status === 'completed' &&
+          completedBackfillRef.current.get(event.symbol) !== completionKey;
+        if (backfill?.status === 'completed' && completionKey != null) {
+          completedBackfillRef.current.set(event.symbol, completionKey);
+        } else {
+          completedBackfillRef.current.delete(event.symbol);
+        }
+        const selection = selectionRef.current;
+        if (!completedNow || event.symbol !== selection.symbol) return;
+
+        void getCandles(selection.symbol, selection.interval, { fresh: true }).then((response) => {
+          if (
+            selectionRef.current.symbol === selection.symbol &&
+            selectionRef.current.interval === selection.interval
+          ) {
+            setCandles(response.candles);
+            setPage(response.page);
+            setLastUpdatedAt(Date.now());
+          }
+        }).catch((refreshError: unknown) => {
+          setError(
+            refreshError instanceof Error
+              ? refreshError.message
+              : '백필 완료 데이터를 갱신하지 못했습니다.',
+          );
+        });
       },
       onStateChange: setStreamState,
       onReconnect: () => {
@@ -179,7 +220,7 @@ export function useMarketDashboard() {
         const controller = new AbortController();
         reconnectControllerRef.current = controller;
         void Promise.all([
-          getStatus(controller.signal).then((response) => setStatuses(response.symbols)),
+          getStatus(controller.signal).then((response) => replaceStatuses(response.symbols)),
           requestSummary(selection.symbol, controller.signal).then((response) => {
             if (selectionRef.current.symbol === selection.symbol) setSummary(response);
           }),
@@ -205,7 +246,7 @@ export function useMarketDashboard() {
       reconnectControllerRef.current = null;
       unsubscribe();
     };
-  }, []);
+  }, [replaceStatuses]);
 
   useEffect(() => {
     if (!symbol) return;
@@ -213,7 +254,7 @@ export function useMarketDashboard() {
       const selection = selectionRef.current;
       void Promise.allSettled([
         getStatus().then((response) => {
-          setStatuses(response.symbols);
+          replaceStatuses(response.symbols);
           if (!response.symbols.some((status) => status.symbol === selectionRef.current.symbol)) {
             setSymbol(response.symbols[0]?.symbol ?? '');
           }
@@ -233,7 +274,7 @@ export function useMarketDashboard() {
     }, SAFETY_REFRESH_MS);
 
     return () => window.clearInterval(refreshTimer);
-  }, [interval, symbol]);
+  }, [interval, replaceStatuses, symbol]);
 
   const selectedStatus = statuses.find((status) => status.symbol === symbol);
   const oldestOpenTime = candles[0]?.openTime;

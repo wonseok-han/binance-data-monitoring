@@ -722,13 +722,6 @@ h2 {
   padding-top: 14px;
 }
 
-.table-pagination span {
-  min-width: 46px;
-  color: var(--muted);
-  font-size: 10px;
-  text-align: center;
-}
-
 .table-pagination button {
   min-width: 112px;
   padding: 8px 12px;

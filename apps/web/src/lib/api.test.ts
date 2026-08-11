@@ -32,6 +32,19 @@ describe('HTTP requests', () => {
     await expect(Promise.all([first, second])).resolves.toEqual([candleResponse, candleResponse]);
   });
 
+  it('bypasses an older in-flight candle snapshot when a fresh response is required', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify(candleResponse), { status: 200 }),
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const initial = getCandles('BTCUSDT', '1m');
+    const afterBackfill = getCandles('BTCUSDT', '1m', { fresh: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await Promise.all([initial, afterBackfill]);
+  });
+
   it('shares a request while allowing each AbortSignal consumer to cancel independently', async () => {
     let resolveFetch!: (response: Response) => void;
     const fetchMock = vi.fn(

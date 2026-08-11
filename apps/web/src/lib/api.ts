@@ -34,6 +34,7 @@ async function request<T>(
   path: string,
   schema: { parse: (value: unknown) => T },
   signal?: AbortSignal,
+  shareInFlight = true,
 ): Promise<T> {
   const execute = async (): Promise<T> => {
     let response: Response;
@@ -67,9 +68,13 @@ async function request<T>(
     return schema.parse(payload);
   };
 
-  const existing = inFlightRequests.get(path) as Promise<T> | undefined;
-  const shared = existing ?? execute().finally(() => inFlightRequests.delete(path));
-  if (!existing) inFlightRequests.set(path, shared);
+  const existing = shareInFlight
+    ? (inFlightRequests.get(path) as Promise<T> | undefined)
+    : undefined;
+  const shared = existing ?? (shareInFlight
+    ? execute().finally(() => inFlightRequests.delete(path))
+    : execute());
+  if (shareInFlight && !existing) inFlightRequests.set(path, shared);
   if (!signal) return shared;
   if (signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
 
@@ -91,13 +96,14 @@ export function getSummary(symbol: MarketSymbol, signal?: AbortSignal) {
 export function getCandles(
   symbol: MarketSymbol,
   interval: Interval,
-  options: { signal?: AbortSignal; to?: number } = {},
+  options: { signal?: AbortSignal; to?: number; fresh?: boolean } = {},
 ) {
   const before = options.to == null ? '' : `&to=${options.to}`;
   return request(
     `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${intervalLimit(interval)}${before}`,
     CandlesResponseSchema,
     options.signal,
+    !options.fresh,
   );
 }
 

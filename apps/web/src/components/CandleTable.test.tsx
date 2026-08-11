@@ -48,7 +48,7 @@ describe('CandleTable', () => {
     expect(screen.getByText('확정')).toBeTruthy();
   });
 
-  it('uses local eight-row pages before requesting an older cursor', async () => {
+  it('reveals local candles eight at a time before requesting an older cursor', async () => {
     const onLoadPrevious = vi.fn().mockResolvedValue(false);
     render(
       <CandleTable
@@ -60,18 +60,16 @@ describe('CandleTable', () => {
     );
 
     expect(screen.getByText('10,015')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    expect(screen.queryByText('10,007')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '더보기' }));
     expect(screen.getByText('10,007')).toBeTruthy();
     expect(onLoadPrevious).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: '최신 8개' }));
-    expect(screen.getByText('10,015')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
-    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    fireEvent.click(screen.getByRole('button', { name: '더보기' }));
     await waitFor(() => expect(onLoadPrevious).toHaveBeenCalledOnce());
   });
 
-  it('shows a cursor page after older candles are added', async () => {
+  it('appends cursor candles below the rows already shown', async () => {
     const allCandles = candles(16);
     let resolveLoad!: (loaded: boolean) => void;
     const onLoadPrevious = vi.fn(
@@ -88,7 +86,7 @@ describe('CandleTable', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    fireEvent.click(screen.getByRole('button', { name: '더보기' }));
     view.rerender(
       <CandleTable
         candles={allCandles}
@@ -100,7 +98,8 @@ describe('CandleTable', () => {
     await act(async () => resolveLoad(true));
 
     expect(screen.getByText('10,007')).toBeTruthy();
-    expect(screen.getByText('2페이지')).toBeTruthy();
+    expect(screen.getByText('10,015')).toBeTruthy();
+    expect(screen.queryByText('2페이지')).toBeNull();
   });
 
   it('offers cursor loading and distinguishes a backfill-in-progress empty state', async () => {
@@ -114,7 +113,7 @@ describe('CandleTable', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    fireEvent.click(screen.getByRole('button', { name: '더보기' }));
     await waitFor(() => expect(onLoadPrevious).toHaveBeenCalledOnce());
 
     rerender(<CandleTable candles={[]} interval="1d" backfillInProgress />);

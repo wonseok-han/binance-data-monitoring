@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   handlers: undefined as
     | {
         onCandle: (event: { symbol: string; candle: Candle }) => void;
+        onStatus: (event: { symbol: string; status: SymbolStatus }) => void;
         onReconnect: () => void;
       }
     | undefined,
@@ -55,6 +56,23 @@ function candle(isClosed: boolean): Candle {
     tradeCount: 3,
     isClosed,
     updatedAt: 130_000,
+  };
+}
+
+function backfillStatus(state: 'running' | 'completed'): SymbolStatus {
+  return {
+    ...status,
+    historicalBackfill: {
+      status: state,
+      processed: state === 'completed' ? 525_600 : 1_000,
+      total: 525_600,
+      progressPercent: state === 'completed' ? 100 : 0.19,
+      from: Date.UTC(2025, 7, 10),
+      to: Date.UTC(2026, 7, 10),
+      lastError: null,
+      retryCount: 0,
+      nextRetryAt: null,
+    },
   };
 }
 
@@ -136,6 +154,27 @@ describe('useMarketDashboard synchronization', () => {
       expect(api.getSummary).toHaveBeenCalledOnce();
       expect(api.getCandles).toHaveBeenCalledOnce();
     });
+  });
+
+  it('replaces the candle snapshot once when historical backfill completes', async () => {
+    api.getStatus.mockResolvedValue({ symbols: [backfillStatus('running')] });
+    const { result } = renderHook(() => useMarketDashboard());
+    await waitFor(() => expect(result.current.requestState).toBe('ready'));
+    api.getCandles.mockClear().mockResolvedValue({
+      symbol: 'BTCUSDT',
+      interval: '1m',
+      candles: [{ ...candle(true), openTime: 60_000 }],
+      page: { nextBefore: 59_999, hasMore: false },
+    });
+
+    act(() => api.handlers?.onStatus({ symbol: 'BTCUSDT', status: backfillStatus('completed') }));
+
+    await waitFor(() => expect(api.getCandles).toHaveBeenCalledWith('BTCUSDT', '1m', { fresh: true }));
+    await waitFor(() => expect(result.current.candles[0]?.openTime).toBe(60_000));
+    expect(result.current.page).toEqual({ nextBefore: 59_999, hasMore: false });
+
+    act(() => api.handlers?.onStatus({ symbol: 'BTCUSDT', status: backfillStatus('completed') }));
+    expect(api.getCandles).toHaveBeenCalledOnce();
   });
 
   it('cancels reconnect snapshot consumers when the selection changes', async () => {
