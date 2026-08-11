@@ -4,8 +4,8 @@ BTCUSDT와 ETHUSDT의 Binance 시세를 수집·복구하고 실시간 운영 �
 
 ## 주요 기능 및 구현
 
-- **실시간 수집과 복구**: Binance 1분봉 WebSocket을 먼저 연결해 이벤트를 버퍼링한 뒤, 최근 누락 구간과 `BACKFILL_WARMUP_HOURS`만 우선 REST 백필해 실시간 전환을 지연시키지 않는다. 최초 실행과 재시작 모두 같은 흐름을 사용하며 `(symbol, open_time)` upsert로 중복을 방지한다.
-- **백그라운드 장기 백필**: 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태(cursor)를 `backfill_jobs`에 저장해 재시작 시 이어서 처리하고, HTTP·실시간 수집을 막지 않는다. 일시적 오류는 job을 실패시키지 않고 지수 백오프 후 자동 재시도하며, 영구 오류만 최종 `failed`로 확정한다.
+- **실시간 수집과 복구**: Binance 1분봉 WebSocket을 먼저 연결해 이벤트를 버퍼링한 뒤, 최근 누락 구간과 warmup 구간만 우선 REST 백필해 실시간 전환을 지연시키지 않는다. 최초 실행과 재시작 모두 같은 흐름을 사용하며 `(symbol, open_time)` upsert로 중복을 방지한다.
+- **백그라운드 장기 백필과 실패 정책**: 실시간 전환 직후 나머지 목표 기간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태(cursor)를 `backfill_jobs`에 저장해 재시작 시 이어서 처리하고, HTTP·실시간 수집을 막지 않는다. 일시적 오류는 job을 실패시키지 않고 지수 백오프로 자동 재시도하되, 연속 재시도가 정책 한도(`backfill.maxRetries`, 기본 12회)를 넘거나 재시도로 해결되지 않는 영구 오류면 job을 `failed`로 확정하고 원인과 cursor를 보존한다. 실패는 구조화 로그·알림 포트(`BackfillFailureNotifier`)·status API에 노출되며, 운영자는 `pnpm --filter @binance-monitoring/server run backfill:resume <SYMBOL>`로 failed job을 `pending`으로 재개할 수 있다.
 - **안정적인 운영 상태 추적**: 재연결 지수 백오프, 누락 구간 복구, stale 감지, 최근 오류와 데이터 지연을 종목별로 기록한다.
 - **다중 봉 조회**: 저장된 1분봉을 원본으로 유지하고 조회 시 UTC 경계에 맞춰 6시간봉과 일봉으로 집계하며, 커서 기반 페이지네이션으로 과거 데이터를 이어서 조회한다.
 - **REST·SSE 제공**: 캔들, 요약, 수집 상태와 헬스 체크 API를 제공하고, DB 반영이 끝난 이벤트만 SSE로 전달한다. 확정 1분봉 저장 시 상태 스냅샷도 함께 발행한다.
@@ -63,9 +63,9 @@ pnpm dev
 서버가 기동되면 다음 순서로 동작한다.
 
 1. 종목별로 Binance WebSocket(`kline_1m`) 구독을 먼저 시작한다.
-2. DB의 마지막 확정 봉을 조회해 REST로 누락 구간을 백필한다 (최초 실행은 `BACKFILL_WARMUP_HOURS`만큼).
+2. DB의 마지막 확정 봉을 조회해 REST로 누락 구간을 백필한다 (최초 실행은 `backfill.warmupHours` 정책만큼).
 3. 백필 중 버퍼링된 실시간 이벤트를 시간순으로 반영하고 실시간 upsert 모드로 전환한다. 이 시점부터 HTTP API가 정상 응답한다.
-4. 실시간 전환 직후 나머지 `BACKFILL_DAYS` 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태는 `backfill_jobs`에 저장되어 재시작해도 이어서 처리된다.
+4. 실시간 전환 직후 나머지 `backfill.days` 정책 구간을 최신→과거 방향으로 백그라운드에서 채운다. 진행 상태는 `backfill_jobs`에 저장되어 재시작해도 이어서 처리된다.
 5. 연결이 끊기면 지수 백오프로 재연결하고, 재연결 시마다 같은 절차로 갭을 채운다.
 
 `pnpm dev`는 `SIGINT`(Ctrl+C)를 받으면 각 종목의 수집기, 백그라운드 백필 worker(진행 중인 페이지까지 마무리)와 정리 작업을 멈춘 뒤, 활성 `/api/events` SSE 연결을 모두 명시적으로 끊고(그렇지 않으면 열려 있는 연결 때문에 HTTP drain이 끝나지 않는다) REST 서버와 DB를 순서대로 정리한 뒤 종료한다(graceful shutdown).
@@ -101,6 +101,12 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 | `pnpm db:migrate` | SQLite 마이그레이션 적용 |
 
 루트 명령은 `apps/server`, `apps/web`, `packages/shared`에 재귀적으로 적용된다.
+
+`apps/server`에는 운영용 명령도 있다.
+
+| Command | 설명 |
+| --- | --- |
+| `pnpm --filter @binance-monitoring/server run backfill:resume <SYMBOL>` | 연속 재시도 한도를 넘거나 영구 오류로 `failed`가 된 해당 종목의 장기 백필 job을 `pending`으로 재개한다. 서버를 (재)시작하면 저장된 cursor부터 이어서 처리된다. `failed` job이 없으면 오류로 종료한다 |
 
 ## 환경변수
 
@@ -159,7 +165,7 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 
 `/api/candles` 응답에는 `page: { nextBefore, hasMore }`가 포함된다. `nextBefore`를 다음 요청의 `to`로 넘기면 더 과거 데이터를 커서 방식으로 이어서 조회할 수 있다. `hasMore`가 `false`이고 `historicalBackfill.status`가 `running`/`pending`/`retrying`이면 아직 그 구간까지 백필이 도달하지 못한 것이며, 데이터가 실제로 없는 것과 다르다.
 
-`historicalBackfill.status`는 `pending`/`running`/`retrying`/`completed`/`failed` 중 하나다. 일시적 오류(네트워크 오류, Binance 429/5xx)는 job을 `failed`로 만들지 않고 `retrying` 상태로 지수 백오프 후 같은 페이지를 자동 재시도한다(`retryCount`, `nextRetryAt` 필드로 진행 상태를 확인할 수 있다). 서버가 재시작돼도 재시도 상태와 남은 대기 시간이 보존되어 이어서 처리된다. 잘못된 요청처럼 재시도로 해결되지 않는 영구 오류만 `failed`로 확정되며, `failed` job은 자동 재시도하지 않는다(운영자의 수동 개입 필요).
+`historicalBackfill.status`는 `pending`/`running`/`retrying`/`completed`/`failed` 중 하나다. 일시적 오류(네트워크 오류, Binance 429/5xx)는 job을 `failed`로 만들지 않고 `retrying` 상태로 지수 백오프 후 같은 페이지를 자동 재시도한다(`retryCount`, `nextRetryAt` 필드로 진행 상태를 확인할 수 있다). 서버가 재시작돼도 재시도 상태와 남은 대기 시간이 보존되어 이어서 처리된다. 연속 재시도가 정책 한도(`backfill.maxRetries`, 기본 12회)를 넘거나 잘못된 요청처럼 재시도로 해결되지 않는 영구 오류면 `failed`로 확정되며, `failed` job은 자동 재시도하지 않는다. 운영자는 원인을 해결한 뒤 `pnpm --filter @binance-monitoring/server run backfill:resume <SYMBOL>`으로 수동 재개할 수 있다.
 
 ## 저장소 구조
 
@@ -167,7 +173,7 @@ Vite 개발 서버는 `/api`, `/health` 요청을 로컬 API 서버로 프록시
 apps/
   server/                 # 수집기, SQLite 저장소, REST/SSE API (Claude 담당)
     src/collector/        # Binance REST/WebSocket 연동, 최근 구간 백필, 재연결
-    src/backfill/         # 장기(BACKFILL_DAYS) 백그라운드 백필 worker
+    src/backfill/         # 장기 백그라운드 백필 worker, 실패 알림 포트(notifier)
     src/aggregation/      # 봉 주기 집계 (domain/application/infrastructure 경계)
     src/status/           # 상태 스냅샷 조립, 24시간 완전성 계산
     src/retention/        # 만료 1분봉 정리 작업
@@ -175,6 +181,7 @@ apps/
     src/http/             # Fastify 라우트, 검증, 에러 포맷
     src/events/           # SSE용 in-process pub/sub
     src/config/           # runtime(배포 환경변수), policy(고정 제품 정책), time(시간 상수); index.ts로만 노출
+    src/scripts/          # 운영 CLI (failed backfill job 수동 재개 등)
     drizzle/              # 생성된 SQL 마이그레이션
   web/                    # React 운영 대시보드, REST/SSE 클라이언트와 UI 테스트
 packages/
@@ -192,7 +199,8 @@ CLAUDE.md                 # Claude Code용 진입 문서
 - 백필 시작/종료 시각 계산과 재시작 후 이어받기 (`apps/server/src/collector/backfill.test.ts`)
 - REST 재시도/`Retry-After` 처리 (`apps/server/src/collector/binanceRest.test.ts`)
 - WebSocket 버퍼링→백필→flush→live 전환, 미확정→확정 봉 갱신, 재연결 gap-fill, stale 감지, onFirstLive 1회 호출, 확정봉 status SSE (`apps/server/src/collector/collector.test.ts`)
-- 장기 백필 worker의 페이지네이션, 영구/일시적 오류 분기, 지수 백오프 재시도, 재시도 중 graceful stop, 재시작 후 진행·재시도 상태 재개 (`apps/server/src/backfill/historicalWorker.test.ts`)
+- 장기 백필 worker의 페이지네이션, 영구/일시적 오류 분기, 지수 백오프 재시도, `maxRetries` 초과 시 failed 전환과 실패 알림 포트 호출, 재시도 중 graceful stop, 재시작 후 진행·재시도 상태 재개 (`apps/server/src/backfill/historicalWorker.test.ts`, `apps/server/src/backfill/notifier.test.ts`)
+- failed backfill job 수동 재개(`resumeFailedBackfillJob`)와 정책 불변조건(`assertPolicyInvariants`) (`apps/server/src/db/backfillJobs.test.ts`, `apps/server/src/config/policy.test.ts`)
 - API 쿼리 검증, candles cursor 페이지네이션(`page.nextBefore`/`hasMore`), SSE 스트림과 실제 서버·연결로 검증하는 SSE 활성 상태의 graceful shutdown(hang 없이 스트림 종료) (`apps/server/src/http/**/*.test.ts`)
 - graceful shutdown 순서(SSE 클라이언트 종료 → HTTP drain → DB 종료)와 비동기 stop() 대기 (`apps/server/src/shutdown.test.ts`)
 - 이벤트 중심 동기화, AbortSignal 소비자 간 동일 URL 요청 공유, SSE 지수 백오프 재생성·재연결 snapshot, 오류 응답 처리, timer·요청 정리, cursor 병합과 차트 위치 보존 (`apps/web/src/**/*.test.ts(x)`)

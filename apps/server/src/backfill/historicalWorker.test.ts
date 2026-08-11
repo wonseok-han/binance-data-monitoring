@@ -338,4 +338,114 @@ describe('startHistoricalBackfillWorker', () => {
 
     expect(onProgress).toHaveBeenCalled();
   });
+
+  describe('maxRetries', () => {
+    it('marks the job failed once consecutive transient errors exceed maxRetries, without retrying further', async () => {
+      const backfillDays = 1;
+      const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+      const coveredFrom = targetFrom + 5 * MINUTE_MS;
+      upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, coveredFrom, 1));
+
+      const fetchKlines = vi.fn().mockRejectedValue(new Error('timeout'));
+      const sleep = vi.fn(() => Promise.resolve());
+      const notifyFailed = vi.fn();
+
+      const worker = startHistoricalBackfillWorker(SYMBOL, {
+        db: dbHandle.db,
+        fetchKlines,
+        backfillDays,
+        pageSize: 100,
+        now: () => NOW,
+        sleep,
+        maxRetries: 2,
+        notifier: { notifyFailed },
+      });
+
+      await worker.whenDone();
+
+      const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
+      expect(job?.status).toBe('failed');
+      expect(job?.retryCount).toBe(3); // maxRetries(2)를 넘어선 3번째 시도에서 확정
+      expect(job?.lastError).toContain('timeout');
+      expect(fetchKlines).toHaveBeenCalledTimes(3); // 최초 시도 + 재시도 2회
+      expect(notifyFailed).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: SYMBOL, jobId: job?.id, error: expect.stringContaining('timeout') }),
+      );
+    });
+
+    it('calls the notifier when a permanent error fails the job immediately', async () => {
+      const backfillDays = 2;
+      const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+      upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, targetFrom + DAY_MS, 1));
+
+      const fetchKlines = vi.fn().mockRejectedValue(new BinanceRestError('bad request', 400));
+      const notifyFailed = vi.fn();
+
+      const worker = startHistoricalBackfillWorker(SYMBOL, {
+        db: dbHandle.db,
+        fetchKlines,
+        backfillDays,
+        now: () => NOW,
+        sleep: () => Promise.resolve(),
+        notifier: { notifyFailed },
+      });
+
+      await worker.whenDone();
+
+      const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
+      expect(job?.status).toBe('failed');
+      expect(notifyFailed).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: SYMBOL, jobId: job?.id, error: expect.stringContaining('bad request') }),
+      );
+    });
+
+    it('does not exceed maxRetries when resuming a retrying job that already used up some attempts', async () => {
+      const backfillDays = 1;
+      const targetFrom = Math.floor(NOW / MINUTE_MS) * MINUTE_MS - backfillDays * DAY_MS;
+      const coveredFrom = targetFrom + 5 * MINUTE_MS;
+      upsertCandles(dbHandle.db, makeCandleSeries(SYMBOL, coveredFrom, 1));
+
+      // 이전 실행에서 이미 2번 재시도한 뒤 재시작된 상황을 재현한다(maxRetries=2).
+      const { id } = createBackfillJob(dbHandle.db, {
+        symbol: SYMBOL,
+        fromTime: targetFrom,
+        toTime: coveredFrom - MINUTE_MS,
+        cursor: coveredFrom - MINUTE_MS,
+        totalCount: 5,
+        now: NOW - 10_000,
+      });
+      updateBackfillJobProgress(dbHandle.db, id, {
+        cursor: coveredFrom - MINUTE_MS,
+        processedCount: 0,
+        status: 'retrying',
+        lastError: 'temporary error',
+        retryCount: 2,
+        nextRetryAt: NOW - 1000,
+        now: NOW - 1000,
+      });
+
+      const fetchKlines = vi.fn().mockRejectedValue(new Error('still failing'));
+      const notifyFailed = vi.fn();
+
+      const worker = startHistoricalBackfillWorker(SYMBOL, {
+        db: dbHandle.db,
+        fetchKlines,
+        backfillDays,
+        pageSize: 100,
+        now: () => NOW,
+        sleep: () => Promise.resolve(),
+        maxRetries: 2,
+        notifier: { notifyFailed },
+      });
+
+      await worker.whenDone();
+
+      const job = getLatestBackfillJob(dbHandle.db, SYMBOL);
+      expect(job?.id).toBe(id);
+      expect(job?.status).toBe('failed'); // 이어받은 retryCount(2)에 이번 시도가 더해져 한도를 넘는다
+      expect(job?.retryCount).toBe(3);
+      expect(fetchKlines).toHaveBeenCalledTimes(1); // 재개 직후 첫 시도에서 바로 한도 초과
+      expect(notifyFailed).toHaveBeenCalledTimes(1);
+    });
+  });
 });

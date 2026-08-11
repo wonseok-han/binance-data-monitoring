@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DbHandle } from './client.js';
-import { createBackfillJob, getLatestBackfillJob, updateBackfillJobProgress } from './backfillJobs.js';
+import {
+  createBackfillJob,
+  getLatestBackfillJob,
+  resumeFailedBackfillJob,
+  updateBackfillJobProgress,
+} from './backfillJobs.js';
 import { createTestDb } from '../../test/helpers/db.js';
 
 const SYMBOL = 'BTCUSDT';
@@ -176,5 +181,59 @@ describe('backfill_jobs repository', () => {
 
     expect(getLatestBackfillJob(dbHandle.db, 'BTCUSDT')?.fromTime).toBe(0);
     expect(getLatestBackfillJob(dbHandle.db, 'ETHUSDT')?.fromTime).toBe(500);
+  });
+
+  describe('resumeFailedBackfillJob', () => {
+    it('returns null when no job exists for the symbol', () => {
+      expect(resumeFailedBackfillJob(dbHandle.db, SYMBOL, 100)).toBeNull();
+    });
+
+    it('returns null and makes no change when the latest job is not failed', () => {
+      const { id } = createBackfillJob(dbHandle.db, {
+        symbol: SYMBOL,
+        fromTime: 0,
+        toTime: 1000,
+        cursor: 500,
+        totalCount: 100,
+        now: 0,
+      });
+      updateBackfillJobProgress(dbHandle.db, id, { cursor: 500, processedCount: 10, status: 'running', now: 1 });
+
+      expect(resumeFailedBackfillJob(dbHandle.db, SYMBOL, 100)).toBeNull();
+      expect(getLatestBackfillJob(dbHandle.db, SYMBOL)?.status).toBe('running');
+    });
+
+    it('resets a failed job to pending while preserving cursor and processed count', () => {
+      const { id } = createBackfillJob(dbHandle.db, {
+        symbol: SYMBOL,
+        fromTime: 0,
+        toTime: 1000,
+        cursor: 700,
+        totalCount: 100,
+        now: 0,
+      });
+      updateBackfillJobProgress(dbHandle.db, id, {
+        cursor: 700,
+        processedCount: 30,
+        status: 'failed',
+        lastError: 'bad request',
+        retryCount: 12,
+        nextRetryAt: null,
+        now: 1,
+      });
+
+      const result = resumeFailedBackfillJob(dbHandle.db, SYMBOL, 500);
+
+      expect(result).toEqual({ id });
+      expect(getLatestBackfillJob(dbHandle.db, SYMBOL)).toMatchObject({
+        status: 'pending',
+        cursor: 700,
+        processedCount: 30,
+        lastError: null,
+        retryCount: 0,
+        nextRetryAt: null,
+        updatedAt: 500,
+      });
+    });
   });
 });

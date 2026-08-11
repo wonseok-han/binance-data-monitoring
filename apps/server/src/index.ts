@@ -8,6 +8,7 @@ import { createWsFactory } from './collector/binanceWs.js';
 import { startCollector } from './collector/collector.js';
 import { startHistoricalBackfillWorker } from './backfill/historicalWorker.js';
 import type { HistoricalBackfillWorker } from './backfill/historicalWorker.js';
+import { createLoggingBackfillFailureNotifier } from './backfill/notifier.js';
 import { createEventBus } from './events/bus.js';
 import { createSseRegistry } from './http/sseRegistry.js';
 import { startRetentionCleanup } from './retention/cleanup.js';
@@ -31,6 +32,10 @@ const collectorLogger = {
   info: (msg: string, meta?: Record<string, unknown>) => app.log.info(meta ?? {}, msg),
   error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
 };
+// 실패 알림 어댑터를 이 한 곳에서만 결정한다. Webhook/Sentry/Prometheus 등
+// 실제 연동이 필요해지면 여기서 createLoggingBackfillFailureNotifier 대신
+// 새 어댑터로 교체하면 되고, historicalWorker는 수정할 필요가 없다.
+const backfillFailureNotifier = createLoggingBackfillFailureNotifier(collectorLogger);
 
 // 종목별로 실시간 전환(onFirstLive) 이후 시작되므로, 기동 시점에는 비어 있다가
 // 점점 채워진다. graceful shutdown이 그 시점의 전체 목록을 정지시켜야 하므로
@@ -54,6 +59,7 @@ const collectors = policy.symbols.map((symbol) =>
           fetchKlines: restClient.fetchKlines,
           backfillDays: policy.backfill.days,
           logger: collectorLogger,
+          notifier: backfillFailureNotifier,
           onProgress: () => {
             events.emitStatus(symbol, buildSymbolStatus(dbHandle.db, symbol, Date.now()));
           },

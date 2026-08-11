@@ -11,7 +11,8 @@
     "lint": "eslint src",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "backfill:resume": "tsx src/scripts/resumeBackfillJob.ts"
   },
   "dependencies": {
     "@binance-monitoring/shared": "workspace:*",

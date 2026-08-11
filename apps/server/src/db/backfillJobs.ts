@@ -75,3 +75,30 @@ export function updateBackfillJobProgress(
     .where(eq(backfillJobs.id, id))
     .run();
 }
+
+export interface ResumeBackfillJobResult {
+  id: number;
+}
+
+/**
+ * 종목의 가장 최근 job이 `failed` 상태일 때만 `pending`으로 되돌려
+ * 저장된 cursor부터 재개하게 한다(재시도 횟수와 오류는 초기화한다).
+ * `failed` job이 없으면 아무것도 바꾸지 않고 null을 반환한다. 다음
+ * worker 실행(서버 재시작)이 실제로 이어서 처리한다.
+ */
+export function resumeFailedBackfillJob(db: DbHandle['db'], symbol: string, now: number): ResumeBackfillJobResult | null {
+  const job = getLatestBackfillJob(db, symbol);
+  if (!job || job.status !== 'failed') return null;
+
+  updateBackfillJobProgress(db, job.id, {
+    cursor: job.cursor,
+    processedCount: job.processedCount,
+    status: 'pending',
+    lastError: null,
+    retryCount: 0,
+    nextRetryAt: null,
+    now,
+  });
+
+  return { id: job.id };
+}
