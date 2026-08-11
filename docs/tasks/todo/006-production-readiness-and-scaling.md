@@ -25,6 +25,7 @@
 | 수집기, 백필 worker와 API가 한 프로세스에 결합됨 | PostgreSQL/TimescaleDB 이전 후 ingest와 API 프로세스 분리 | API 배포·장애가 수집에 영향을 주거나 역할별 독립 확장이 필요할 때 |
 | SQLite의 단일 writer와 장기 시계열 조회 한계 | PostgreSQL/TimescaleDB 이전 | 데이터량이나 동시 조회가 SQLite 성능 범위를 넘을 때 |
 | 6시간봉·일봉을 요청마다 집계함 | rollup table과 독립 보존 정책 | 집계 조회가 API latency 또는 DB 부하의 주요 원인이 될 때 |
+| 종목을 문자열 목록으로 관리하고 UI가 3자리 base asset과 USDT quote asset을 가정함 | `{ symbol, baseAsset, quoteAsset }` 형태의 market 설정을 수집기·API·UI의 단일 기준으로 사용하고 종목 수에 독립적인 테스트로 변경 | 세 번째 종목 또는 USDT가 아닌 거래쌍을 지원할 때 |
 | 백필 실패가 로그와 notifier port에만 노출됨 | 외부 알림과 운영 지표 연결 | 로그를 직접 확인하는 방식으로 장애 대응 시간을 만족하기 어려울 때 |
 | 실제 장기 장애와 365일 전체 백필을 자동 검증하지 않음 | fixture 기반 장기 검증과 축소된 정기 Binance smoke test | 운영 배포 전 반복 가능한 장기 검증이 필요할 때 |
 
