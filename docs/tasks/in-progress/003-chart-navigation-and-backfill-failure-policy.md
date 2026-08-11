@@ -56,19 +56,21 @@ config/
 
 ## 백엔드 작업 — Claude
 
-- [ ] `config/runtime.ts`, `policy.ts`, `time.ts`, `index.ts`로 중앙 config 모듈 재구성
-- [ ] `SYMBOLS`, 백필·보존·수집 재시도, SSE heartbeat와 API limit 환경변수를 typed policy로 이동
-- [ ] 중복된 page size, retry delay, batch size와 시간 상수를 중앙 config로 통합
-- [ ] 도메인 전용 상수와 테스트 fixture는 가까운 모듈에 유지
-- [ ] 환경변수 기반 테스트를 config 또는 의존성 주입 방식으로 변경
-- [ ] `BACKFILL_MAX_RETRIES` typed policy, 검증과 문서화
-- [ ] 연속 재시도 한도 초과 시 failed 전환 및 상태 영속화
-- [ ] 성공 시 retry count 초기화 회귀 테스트
-- [ ] 종목별 failed job 수동 재개 명령과 테스트
-- [ ] 백필 실패 알림 포트와 기본 구조화 로그 어댑터
-- [ ] status API와 공용 스키마 정합성 확인
-- [ ] `.env.example`, README와 `docs/DESIGN.md` 갱신
-- [ ] 전체 품질 명령 통과
+- [x] `config/runtime.ts`, `policy.ts`, `time.ts`, `index.ts`로 중앙 config 모듈 재구성
+- [x] `SYMBOLS`, 백필·보존·수집 재시도, SSE heartbeat와 API limit 환경변수를 typed policy로 이동
+- [x] 중복된 page size, retry delay, batch size와 시간 상수를 중앙 config로 통합
+- [x] 도메인 전용 상수와 테스트 fixture는 가까운 모듈에 유지
+- [x] 환경변수 기반 테스트를 config 또는 의존성 주입 방식으로 변경
+- [x] `BACKFILL_MAX_RETRIES` typed policy, 검증과 문서화
+- [x] 연속 재시도 한도 초과 시 failed 전환 및 상태 영속화
+- [x] 성공 시 retry count 초기화 회귀 테스트
+- [x] 종목별 failed job 수동 재개 명령과 테스트
+- [x] 백필 실패 알림 포트와 기본 구조화 로그 어댑터
+- [x] status API와 공용 스키마 정합성 확인
+- [x] `.env.example`, README 갱신 (`docs/DESIGN.md`는 UI 작업까지 끝난 뒤 AGENTS.md 작업 생명주기에 따라 일괄 갱신)
+- [x] 전체 품질 명령 통과
+
+백엔드 범위는 완료했다. Codex의 UI 작업(6시간봉 시간축, 최근 봉 8개 단위 탐색)이 남아 있어 이 문서는 계속 `in-progress`로 유지한다. 검증 결과는 문서 하단 "백엔드 검증 결과" 절 참고.
 
 ## UI 작업 — Codex
 
@@ -87,15 +89,17 @@ config/
 - [ ] 최근 봉의 이전 버튼을 누르면 실제로 더 오래된 8개 행이 표시된다.
 - [ ] 이미 받은 데이터를 탐색하는 동안 추가 API 요청이 발생하지 않는다.
 - [ ] 가장 오래된 로컬 지점에서만 cursor 요청이 한 번 발생하고 다음 페이지가 표시된다.
-- [ ] 백필의 일시적 오류가 설정된 횟수까지만 자동 재시도된다.
-- [ ] 한도 초과 job은 실패 원인과 cursor를 잃지 않고 `failed`가 된다.
-- [ ] 수동 명령으로 failed job을 재개할 수 있다.
-- [ ] 외부 알림 시스템을 추가할 때 worker를 수정하지 않고 어댑터를 연결할 수 있다.
-- [ ] 공유 정책과 기반 상수는 중앙 config 모듈을 통해 사용되고 중복 기본값이 없다.
-- [ ] `.env.example`에는 배포 환경에 따라 달라지는 설정만 남는다.
-- [ ] 실제 브라우저 네트워크 요청과 화면 동작을 함께 검증한다.
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`가 모두 통과한다.
+- [x] 백필의 일시적 오류가 설정된 횟수까지만 자동 재시도된다.
+- [x] 한도 초과 job은 실패 원인과 cursor를 잃지 않고 `failed`가 된다.
+- [x] 수동 명령으로 failed job을 재개할 수 있다.
+- [x] 외부 알림 시스템을 추가할 때 worker를 수정하지 않고 어댑터를 연결할 수 있다.
+- [x] 공유 정책과 기반 상수는 중앙 config 모듈을 통해 사용되고 중복 기본값이 없다.
+- [x] `.env.example`에는 배포 환경에 따라 달라지는 설정만 남는다.
+- [ ] 실제 브라우저 네트워크 요청과 화면 동작을 함께 검증한다. (Codex 담당 UI 검증 포함, 미착수)
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`가 모두 통과한다 (workspace 전체, 현재 `apps/web` 상태 기준. UI 작업 반영 후 재검증 필요).
 - [ ] 완료된 동작을 README와 `docs/DESIGN.md`에 반영하고 문서를 `done`으로 이동한다.
+      → `README.md`는 백엔드 변경분(config 정책 이관, 실패 정책, 수동 재개 명령)을 이미 반영했다.
+      `docs/DESIGN.md`는 AGENTS.md 작업 생명주기에 따라 **UI 작업까지 전체 완료된 뒤에만** 갱신하므로 아직 미반영이다.
 
 ## 범위 제외
 
@@ -103,3 +107,40 @@ config/
 - 알림 수신자와 에스컬레이션 정책 관리 화면
 - 범용 백필 관리 콘솔
 - 차트 라이브러리 교체
+
+## 백엔드 검증 결과 (Claude)
+
+### 로컬 브랜치·커밋
+
+| 브랜치 | 내용 |
+| --- | --- |
+| `feat/3-config-policy-runtime-split` | `config/env.ts`·`constants.ts`를 `runtime.ts`(배포 환경변수)·`policy.ts`(고정 제품 정책)·`time.ts`(시간 상수)·`index.ts`(공개 진입점)로 재구성. 흩어져 있던 page size/retry delay/batch size 기본값을 policy 참조로 통합. `RETENTION_DAYS < BACKFILL_DAYS` 검증은 `assertPolicyInvariants()`로 이동 |
+| `feat/3-backfill-max-retries-failed-policy` | `policy.backfill.maxRetries`(기본 12) 초과 시 job을 영구 `failed`로 전환, `backfill/notifier.ts`(`BackfillFailureNotifier` 포트 + 로깅 어댑터), `resumeFailedBackfillJob` 저장소 함수와 `backfill:resume` CLI (현재 브랜치) |
+
+모두 로컬 `main`에 `--ff-only`로 반영되어 있고 원격 push는 하지 않았다.
+
+### 설계 결정: `.env`가 아닌 `policy.ts`로 이동한 값
+
+`SYMBOLS`, `BACKFILL_DAYS`/`BACKFILL_WARMUP_HOURS`/`BACKFILL_RETRY_BASE_DELAY_MS`/`BACKFILL_RETRY_MAX_DELAY_MS`, `RETENTION_DAYS`/`RETENTION_CLEANUP_INTERVAL_HOURS`, `STALE_AFTER_SECONDS`, `RECONNECT_BASE_DELAY_MS`/`RECONNECT_MAX_DELAY_MS`, `BINANCE_REST_MAX_RETRIES`/`BINANCE_REST_RETRY_DELAY_MS`, `SSE_HEARTBEAT_MS`는 배포 환경에 따라 달라질 이유가 없는 제품 정책이라 환경변수에서 제거하고 `apps/server/src/config/policy.ts`의 고정값으로 옮겼다. `PORT`, `DATABASE_URL`, `BINANCE_REST_URL`/`BINANCE_WS_URL`, `CORS_ORIGIN`, `LOG_LEVEL`만 배포마다 달라질 수 있는 런타임 환경변수로 남았다. 값을 바꾸려면 `.env`가 아니라 `policy.ts`를 수정하고 다시 빌드·배포해야 한다는 점을 README에 명시했다.
+
+`BACKFILL_MAX_RETRIES`도 같은 이유로 처음부터 `policy.backfill.maxRetries`로만 구현했고 환경변수로 노출하지 않았다.
+
+### 자동 검증
+
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — workspace 전체(`packages/shared`, `apps/server`, `apps/web`) 통과.
+- `apps/server` 테스트 126개(신규 `config/runtime.test.ts`·`config/policy.test.ts`·`backfill/notifier.test.ts`, `historicalWorker.test.ts`의 `maxRetries` 초과 시 failed 전환·알림·재시작 후 이어받기 테스트, `backfillJobs.test.ts`의 `resumeFailedBackfillJob` 테스트 포함), `packages/shared` 4개, `apps/web` 26개(미수정, 회귀 없음) 모두 통과.
+- 환경변수로 정책값을 줄이던 기존 테스트를 의존성 주입(정책 객체 직접 구성 또는 worker deps 오버라이드)으로 전환했고, 실제 `policy` 기본값에 대해서도 `assertPolicyInvariants()`가 통과함을 별도로 검증했다.
+- 공용 스키마(`historicalBackfill` 등)는 이번 변경에서 새 필드를 추가하지 않았다(재시도 한도 초과도 기존 `failed` 상태와 `lastError`로 충분히 표현됨). `apps/web` typecheck/test/build 회귀 없음을 확인했다.
+
+### 실서버 스모크 테스트 (Binance 실연동)
+
+- config 리팩터링 후 새 DB로 서버를 기동해 `policy.symbols`(BTCUSDT, ETHUSDT) 두 종목 모두 정상적으로 수집기가 시작되고 `/api/status`가 응답함을 확인(더 이상 `SYMBOLS` 환경변수 없이도 동일하게 동작).
+- 실패 정책 end-to-end 검증: 스크립트로 `backfill_jobs`에 `status=failed`인 job을 직접 시딩 → `pnpm --filter @binance-monitoring/server run backfill:resume BTCUSDT` 실행 → `pending`으로 전환됨을 확인 → 같은 DB로 실제 서버를 기동 → historicalWorker가 저장된 cursor(processedCount 40)부터 이어받아 실제 Binance REST로 나머지 구간을 채우고 `completed`(processedCount 43)까지 정상 진행됨을 `/api/status`로 확인. `SIGTERM` 시 graceful shutdown도 정상(두 종목 collector 모두 정상 정지, 수 ms 내 `shutdown complete`).
+- **중요**: `pnpm --filter @binance-monitoring/server run backfill:resume -- <SYMBOL>`처럼 `--filter`와 함께 `--` 구분자를 쓰면 pnpm이 `--`를 스크립트 인자로 그대로 전달해버려 심볼 인식에 실패하는 것을 실측으로 확인했다. README와 문서의 사용 예시는 `--` 없이 `pnpm --filter @binance-monitoring/server run backfill:resume <SYMBOL>` 형태로 통일했다.
+- `maxRetries` 초과로 인한 `failed` 전환과 알림 포트 호출 자체는 실제 Binance 429/5xx를 안전하게 재현하기 어려워 `historicalWorker.test.ts`의 주입 가능한 fetchKlines/notifier 더블로 검증했다(연속 3회 실패 시 `maxRetries=2` 한도 초과로 `failed` 확정, 재시작 후 이어받은 재시도 횟수가 한도를 넘으면 즉시 `failed` 확정하는 경로 포함).
+
+### 남은 위험 / 다음 단계
+
+- UI(Codex) 작업이 시작되지 않았다. 6시간봉 UTC 눈금·초기 표시 범위, 최근 봉 8개 단위 탐색(로컬 우선, cursor는 소진 시에만), `maxRetries`/실패 상태의 화면 표시가 남아 있다.
+- `resumeFailedBackfillJob`은 재시도 횟수와 오류만 초기화하고 cursor/processedCount는 그대로 보존한다. 실패 원인이 실제로 해결되지 않은 채 재개하면 같은 오류로 다시 `failed`가 될 수 있으므로, 운영자가 원인을 먼저 확인해야 한다는 점은 CLI 출력 메시지 수준으로만 안내하고 별도 확인 절차는 추가하지 않았다(범용 관리 콘솔은 범위 제외).
+- `policy.ts`는 코드 상수이므로 값을 바꾸려면 재빌드·재배포가 필요하다. 운영 중 동적으로 정책을 조정할 방법은 이번 범위에 없다(설계 의도).
