@@ -294,6 +294,7 @@ export function App() {
             <span className="muted-copy">{dashboard.symbol} · UTC 기준</span>
           </div>
           <CandleTable
+            key={`${dashboard.symbol}-${dashboard.interval}`}
             candles={dashboard.candles}
             interval={dashboard.interval}
             canLoadPrevious={dashboard.canLoadPrevious}

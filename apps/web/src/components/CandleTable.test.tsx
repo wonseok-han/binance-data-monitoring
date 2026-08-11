@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Candle } from '@binance-monitoring/shared';
 import { CandleTable } from './CandleTable';
@@ -22,6 +22,16 @@ const sampleCandle: Candle = {
   updatedAt: Date.UTC(2026, 7, 10, 12, 31),
 };
 
+function candles(count: number): Candle[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...sampleCandle,
+    openTime: sampleCandle.openTime + index * 60_000,
+    closeTime: sampleCandle.closeTime + index * 60_000,
+    updatedAt: sampleCandle.updatedAt + index * 60_000,
+    tradeCount: 10_000 + index,
+  }));
+}
+
 describe('CandleTable', () => {
   it('shows an explicit empty state', () => {
     render(<CandleTable candles={[]} interval="6h" />);
@@ -38,8 +48,63 @@ describe('CandleTable', () => {
     expect(screen.getByText('확정')).toBeTruthy();
   });
 
-  it('offers cursor loading and distinguishes a backfill-in-progress empty state', () => {
-    const onLoadPrevious = vi.fn();
+  it('uses local eight-row pages before requesting an older cursor', async () => {
+    const onLoadPrevious = vi.fn().mockResolvedValue(false);
+    render(
+      <CandleTable
+        candles={candles(16)}
+        interval="1m"
+        canLoadPrevious
+        onLoadPrevious={onLoadPrevious}
+      />,
+    );
+
+    expect(screen.getByText('10,015')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    expect(screen.getByText('10,007')).toBeTruthy();
+    expect(onLoadPrevious).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '최신 8개' }));
+    expect(screen.getByText('10,015')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    await waitFor(() => expect(onLoadPrevious).toHaveBeenCalledOnce());
+  });
+
+  it('shows a cursor page after older candles are added', async () => {
+    const allCandles = candles(16);
+    let resolveLoad!: (loaded: boolean) => void;
+    const onLoadPrevious = vi.fn(
+      () => new Promise<boolean>((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+    const view = render(
+      <CandleTable
+        candles={allCandles.slice(8)}
+        interval="1m"
+        canLoadPrevious
+        onLoadPrevious={onLoadPrevious}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    view.rerender(
+      <CandleTable
+        candles={allCandles}
+        interval="1m"
+        canLoadPrevious={false}
+        onLoadPrevious={onLoadPrevious}
+      />,
+    );
+    await act(async () => resolveLoad(true));
+
+    expect(screen.getByText('10,007')).toBeTruthy();
+    expect(screen.getByText('2페이지')).toBeTruthy();
+  });
+
+  it('offers cursor loading and distinguishes a backfill-in-progress empty state', async () => {
+    const onLoadPrevious = vi.fn().mockResolvedValue(false);
     const { rerender } = render(
       <CandleTable
         candles={[sampleCandle]}
@@ -49,8 +114,8 @@ describe('CandleTable', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '이전 데이터 불러오기' }));
-    expect(onLoadPrevious).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: '이전 8개' }));
+    await waitFor(() => expect(onLoadPrevious).toHaveBeenCalledOnce());
 
     rerender(<CandleTable candles={[]} interval="1d" backfillInProgress />);
     expect(screen.getByText('과거 데이터 백필 중')).toBeTruthy();

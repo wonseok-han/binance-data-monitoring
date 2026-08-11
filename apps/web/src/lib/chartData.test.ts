@@ -1,6 +1,10 @@
 import type { Candle } from '@binance-monitoring/shared';
 import { describe, expect, it } from 'vitest';
-import { preserveVisibleRangeAfterPrepend, toFinancialChartData } from './chartData';
+import {
+  initialVisibleLogicalRange,
+  preserveVisibleRangeAfterPrepend,
+  toFinancialChartData,
+} from './chartData';
 
 function candle(openTime: number, open: string, close: string): Candle {
   return {
@@ -50,5 +54,13 @@ describe('preserveVisibleRangeAfterPrepend', () => {
       from: 124.5,
       to: 162.5,
     });
+  });
+});
+
+describe('initialVisibleLogicalRange', () => {
+  it('keeps six-hour candles wide enough for intraday ticks', () => {
+    expect(initialVisibleLogicalRange(120, '6h', 960)).toEqual({ from: 112, to: 122 });
+    expect(initialVisibleLogicalRange(120, '6h', 390)).toEqual({ from: 116, to: 122 });
+    expect(initialVisibleLogicalRange(120, '1d', 960)).toBeNull();
   });
 });

@@ -11,8 +11,18 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 import { useEffect, useRef } from 'react';
-import { formatChartTime, formatCompactUsdt, formatPrice, intervalLabel } from '../lib/market';
-import { preserveVisibleRangeAfterPrepend, toFinancialChartData } from '../lib/chartData';
+import {
+  formatChartTime,
+  formatChartTooltip,
+  formatCompactUsdt,
+  formatPrice,
+  intervalLabel,
+} from '../lib/market';
+import {
+  initialVisibleLogicalRange,
+  preserveVisibleRangeAfterPrepend,
+  toFinancialChartData,
+} from '../lib/chartData';
 
 interface MarketChartsProps {
   candles: Candle[];
@@ -93,7 +103,7 @@ export function MarketCharts({
         tickMarkFormatter: (time: Time) => formatChartTime(timeToMilliseconds(time), interval),
       },
       localization: {
-        timeFormatter: (time: Time) => `${formatChartTime(timeToMilliseconds(time), interval)} UTC`,
+        timeFormatter: (time: Time) => formatChartTooltip(timeToMilliseconds(time), interval),
       },
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       handleScroll: { horzTouchDrag: true, mouseWheel: true, pressedMouseMove: true },
@@ -170,7 +180,13 @@ export function MarketCharts({
         .timeScale()
         .setVisibleLogicalRange(preserveVisibleRangeAfterPrepend(visibleRange, prependedCount));
     } else if (previousIntervalRef.current !== interval || candles.length <= 1) {
-      chart.timeScale().fitContent();
+      const initialRange = initialVisibleLogicalRange(
+        candles.length,
+        interval,
+        containerRef.current?.clientWidth ?? 0,
+      );
+      if (initialRange) chart.timeScale().setVisibleLogicalRange(initialRange);
+      else chart.timeScale().fitContent();
       previousIntervalRef.current = interval;
     }
     previousFirstOpenTimeRef.current = candles[0]?.openTime ?? null;

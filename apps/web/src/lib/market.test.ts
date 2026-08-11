@@ -3,6 +3,7 @@ import {
   backfillStatusLabel,
   completenessPercentage,
   formatChartTime,
+  formatChartTooltip,
   formatLag,
   formatPercent,
   formatUtcDate,
@@ -52,6 +53,16 @@ describe('interval presentation', () => {
 
   it('includes the date on daily chart ticks', () => {
     expect(formatChartTime(Date.UTC(2026, 7, 10), '1d')).toContain('08');
+  });
+
+  it('shows UTC date boundaries and six-hour ticks with a full tooltip', () => {
+    expect(formatChartTime(Date.UTC(2026, 7, 10, 0), '6h')).toBe('08.10');
+    expect(formatChartTime(Date.UTC(2026, 7, 10, 6), '6h')).toBe('06');
+    expect(formatChartTime(Date.UTC(2026, 7, 10, 12), '6h')).toBe('12');
+    expect(formatChartTime(Date.UTC(2026, 7, 10, 18), '6h')).toBe('18');
+    expect(formatChartTooltip(Date.UTC(2026, 7, 10, 6), '6h')).toBe(
+      '2026.08.10 06:00 UTC',
+    );
   });
 });
 

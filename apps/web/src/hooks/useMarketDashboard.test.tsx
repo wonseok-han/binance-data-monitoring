@@ -88,6 +88,17 @@ afterEach(() => {
 });
 
 describe('useMarketDashboard synchronization', () => {
+  it('keeps the current candle data when the active interval is selected again', async () => {
+    const { result } = renderHook(() => useMarketDashboard());
+    await waitFor(() => expect(result.current.requestState).toBe('ready'));
+    api.getCandles.mockClear();
+
+    act(() => result.current.setInterval('1m'));
+
+    expect(result.current.candles).toHaveLength(1);
+    expect(api.getCandles).not.toHaveBeenCalled();
+  });
+
   it('uses a five-minute safety poll and refreshes aggregates only for a closed candle', async () => {
     const intervalSpy = vi.spyOn(window, 'setInterval');
     const { result } = renderHook(() => useMarketDashboard());

@@ -59,6 +59,12 @@ export function BackfillStatus({
             </dd>
           </div>
         ) : null}
+        {backfill?.status === 'failed' ? (
+          <div>
+            <dt>자동 재시도</dt>
+            <dd>연속 {backfill.retryCount}회 실패 · 수동 확인 필요</dd>
+          </div>
+        ) : null}
       </dl>
 
       {backfill?.lastError ? (

@@ -25,7 +25,7 @@ function status(state: 'running' | 'retrying' | 'failed'): SymbolStatus {
       from: Date.UTC(2025, 7, 10),
       to: Date.UTC(2026, 7, 10),
       lastError: state === 'running' ? null : 'Binance REST unavailable',
-      retryCount: state === 'retrying' ? 3 : 0,
+      retryCount: state === 'retrying' ? 3 : state === 'failed' ? 12 : 0,
       nextRetryAt: state === 'retrying' ? Date.UTC(2026, 7, 10, 12, 30) : null,
     },
     coverage: { from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 7, 10) },
@@ -48,5 +48,13 @@ describe('BackfillStatus', () => {
     expect(screen.getByText('재시도 대기')).toBeTruthy();
     expect(screen.getByText(/연속 3회/)).toBeTruthy();
     expect(screen.getByText('Binance REST unavailable')).toBeTruthy();
+  });
+
+  it('shows exhausted retries and manual action for a failed job', () => {
+    render(<BackfillStatus symbol="BTCUSDT" status={status('failed')} />);
+
+    expect(screen.getByText('확인 필요')).toBeTruthy();
+    expect(screen.getByText(/연속 12회 실패/)).toBeTruthy();
+    expect(screen.getByText(/수동 확인 필요/)).toBeTruthy();
   });
 });

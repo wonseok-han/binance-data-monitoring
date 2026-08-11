@@ -716,12 +716,21 @@ h2 {
 
 .table-pagination {
   display: flex;
+  align-items: center;
+  gap: 10px;
   justify-content: center;
   padding-top: 14px;
 }
 
+.table-pagination span {
+  min-width: 46px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
 .table-pagination button {
-  min-width: 156px;
+  min-width: 112px;
   padding: 8px 12px;
   color: #cdd3dc;
   border: 1px solid var(--line);

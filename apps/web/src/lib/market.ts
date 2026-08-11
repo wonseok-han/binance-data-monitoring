@@ -100,14 +100,26 @@ export function formatUtcDate(value: number | null): string {
 }
 
 export function formatChartTime(value: number, interval: Interval): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'UTC',
-    month: interval === '1d' ? '2-digit' : undefined,
-    day: interval === '1d' ? '2-digit' : undefined,
-    hour: interval === '1d' ? undefined : '2-digit',
-    minute: interval === '1m' ? '2-digit' : undefined,
-    hour12: false,
-  }).format(value);
+  const date = new Date(value);
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+
+  if (interval === '6h') return date.getUTCHours() === 0 ? `${month}.${day}` : hour;
+  if (interval === '1d') return `${month}.${day}`;
+  return `${hour}:${minute}`;
+}
+
+export function formatChartTooltip(value: number, interval: Interval): string {
+  const date = new Date(value);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  if (interval === '1d') return `${year}.${month}.${day} UTC`;
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${year}.${month}.${day} ${hour}:${minute} UTC`;
 }
 
 export function statusLabel(status: ConnectionStatus): string {

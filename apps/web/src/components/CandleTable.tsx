@@ -1,12 +1,15 @@
 import type { Candle, Interval } from '@binance-monitoring/shared';
+import { useState } from 'react';
 import { formatCompactUsdt, formatPrice, formatUtcDateTime, intervalLabel } from '../lib/market';
+
+const ROWS_PER_PAGE = 8;
 
 interface CandleTableProps {
   candles: Candle[];
   interval: Interval;
   canLoadPrevious?: boolean;
   loadingPrevious?: boolean;
-  onLoadPrevious?: () => void;
+  onLoadPrevious?: () => boolean | Promise<boolean>;
   backfillInProgress?: boolean;
 }
 
@@ -18,7 +21,29 @@ export function CandleTable({
   onLoadPrevious,
   backfillInProgress = false,
 }: CandleTableProps) {
-  const rows = candles.slice(-8).reverse();
+  const [pageIndex, setPageIndex] = useState(0);
+  const [requestingPrevious, setRequestingPrevious] = useState(false);
+  const pageEnd = Math.max(0, candles.length - pageIndex * ROWS_PER_PAGE);
+  const pageStart = Math.max(0, pageEnd - ROWS_PER_PAGE);
+  const rows = candles.slice(pageStart, pageEnd).reverse();
+  const hasOlderLocal = pageStart > 0;
+  const hasNewer = pageIndex > 0;
+  const canGoOlder = hasOlderLocal || canLoadPrevious;
+  const isLoadingPrevious = loadingPrevious || requestingPrevious;
+
+  const showOlder = async () => {
+    if (hasOlderLocal) {
+      setPageIndex((current) => current + 1);
+      return;
+    }
+    if (!canLoadPrevious || !onLoadPrevious || isLoadingPrevious) return;
+    setRequestingPrevious(true);
+    try {
+      if (await onLoadPrevious()) setPageIndex((current) => current + 1);
+    } finally {
+      setRequestingPrevious(false);
+    }
+  };
 
   if (rows.length === 0) {
     return (
@@ -69,17 +94,21 @@ export function CandleTable({
         </tbody>
         </table>
       </div>
-      {(canLoadPrevious || backfillInProgress) && onLoadPrevious ? (
+      {(canGoOlder || hasNewer || backfillInProgress) && onLoadPrevious ? (
         <div className="table-pagination">
+          <button type="button" disabled={!hasNewer} onClick={() => setPageIndex((current) => current - 1)}>
+            최신 8개
+          </button>
+          <span>{pageIndex + 1}페이지</span>
           <button
             type="button"
-            disabled={!canLoadPrevious || loadingPrevious}
-            onClick={onLoadPrevious}
+            disabled={!canGoOlder || isLoadingPrevious}
+            onClick={() => void showOlder()}
           >
-            {loadingPrevious
-              ? '이전 데이터 불러오는 중'
-              : canLoadPrevious
-                ? '이전 데이터 불러오기'
+            {isLoadingPrevious
+              ? '이전 기록 불러오는 중'
+              : canGoOlder
+                ? '이전 8개'
                 : '과거 데이터 백필 중'}
           </button>
         </div>

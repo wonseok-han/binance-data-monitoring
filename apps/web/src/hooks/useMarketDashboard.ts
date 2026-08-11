@@ -245,8 +245,9 @@ export function useMarketDashboard() {
   const canLoadPrevious = page.hasMore || coverageHasOlder;
 
   const loadPrevious = useCallback(async () => {
-    if (!symbol || loadingPreviousRef.current || !canLoadPrevious || page.nextBefore == null) return;
+    if (!symbol || loadingPreviousRef.current || !canLoadPrevious || page.nextBefore == null) return false;
     const requestedSelection = { symbol, interval };
+    const previousOldestOpenTime = candles[0]?.openTime ?? Number.POSITIVE_INFINITY;
     loadingPreviousRef.current = true;
     setLoadingPrevious(true);
     setError(null);
@@ -256,12 +257,14 @@ export function useMarketDashboard() {
       if (
         selectionRef.current.symbol !== requestedSelection.symbol ||
         selectionRef.current.interval !== requestedSelection.interval
-      ) return;
+      ) return false;
       setCandles((current) => mergeCandles(current, response.candles));
       setPage(response.page);
       setLastUpdatedAt(Date.now());
+      return response.candles.some((candle) => candle.openTime < previousOldestOpenTime);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '이전 데이터를 불러오지 못했습니다.');
+      return false;
     } finally {
       loadingPreviousRef.current = false;
       if (
@@ -269,7 +272,7 @@ export function useMarketDashboard() {
         selectionRef.current.interval === requestedSelection.interval
       ) setLoadingPrevious(false);
     }
-  }, [canLoadPrevious, interval, page.nextBefore, symbol]);
+  }, [canLoadPrevious, candles, interval, page.nextBefore, symbol]);
 
   const completeness = useMemo(() => {
     const value = selectedStatus?.completeness24h;
@@ -281,12 +284,21 @@ export function useMarketDashboard() {
     };
   }, [selectedStatus]);
 
+  const selectInterval = useCallback((nextInterval: Interval) => {
+    if (selectionRef.current.interval === nextInterval) return;
+    setCandles([]);
+    setPage(EMPTY_PAGE);
+    loadingPreviousRef.current = false;
+    setLoadingPrevious(false);
+    setInterval(nextInterval);
+  }, []);
+
   return {
     symbol,
     symbols: statuses.map((status) => status.symbol),
     setSymbol,
     interval,
-    setInterval,
+    setInterval: selectInterval,
     candles,
     page,
     canLoadPrevious,

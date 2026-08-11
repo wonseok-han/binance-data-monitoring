@@ -1,4 +1,8 @@
-import type { Candle } from '@binance-monitoring/shared';
+import type { Candle, Interval } from '@binance-monitoring/shared';
+
+const SIX_HOUR_TICK_WIDTH = 120;
+const MIN_SIX_HOUR_BARS = 4;
+const MAX_SIX_HOUR_BARS = 8;
 
 export interface FinancialCandlePoint {
   time: number;
@@ -22,6 +26,21 @@ export function preserveVisibleRangeAfterPrepend(
     from: range.from + prependedCount,
     to: range.to + prependedCount,
   };
+}
+
+export function initialVisibleLogicalRange(
+  candleCount: number,
+  interval: Interval,
+  width: number,
+): { from: number; to: number } | null {
+  if (interval !== '6h' || candleCount <= 1) return null;
+  const barsForWidth = Math.floor(width / SIX_HOUR_TICK_WIDTH);
+  const visibleBars = Math.min(
+    candleCount,
+    MAX_SIX_HOUR_BARS,
+    Math.max(MIN_SIX_HOUR_BARS, barsForWidth),
+  );
+  return { from: candleCount - visibleBars, to: candleCount + 2 };
 }
 
 export function toFinancialChartData(candles: Candle[]): {
